@@ -10,12 +10,7 @@ stdenv.mkDerivation (finalAttrs: {
   pname = "hellwal";
   version = "1.0.2";
 
-  src = fetchFromGitHub {
-    owner = "danihek";
-    repo = "hellwal";
-    tag = "v${finalAttrs.version}";
-    hash = "sha256-TrqXInoz6OEtS12YmXUILV41IkZW0B4XAAESiU2yMMU=";
-  };
+  src = ../.;
 
   nativeBuildInputs = [ makeWrapper ];
 

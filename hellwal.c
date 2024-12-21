@@ -110,7 +110,7 @@
 #define PALETTE_SIZE 16
 #define BINS 8
 
-/* set default value for global char* variables */
+ /* set default value for global char* variables */
 #define SET_DEF(x, s) \
     if (x == NULL) \
         x = home_full_path(s); \
@@ -594,9 +594,11 @@ int set_args(int argc, char *argv[])
     if (RANDOM_ARG != NULL)
     {
         if (IMAGE_ARG != NULL)
-            IMAGE_ARG = rand_file(IMAGE_ARG);
+            IMAGE_ARG = rand_file(home_full_path(IMAGE_ARG));
+        else if (THEME_FOLDER_ARG != NULL)
+            THEME_ARG = rand_file(home_full_path(THEME_FOLDER_ARG));
         else
-            THEME_ARG = rand_file(THEME_FOLDER_ARG);
+            warn("random is not used");
     }
 
     /* set offset values - you can provide both, but they will interfier with each other */
@@ -750,7 +752,7 @@ char *rand_file(char *path)
 {
     DIR *dir = opendir(path);
     if (dir == NULL)
-        err("Cannot access directory %s: ", path);
+        err("Cannot access directory: %s ", path);
 
     struct dirent *entry;
     char **files = NULL;

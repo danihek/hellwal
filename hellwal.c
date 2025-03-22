@@ -1,5 +1,6 @@
-/*  hellwal - v1.0.2 - MIT LICENSE
+/*  hellwal - v1.0.3 - MIT LICENSE
  *
+ *  [ ] TODO: gtk css?
  *  [ ] TODO: support for other OS's like Mac or Win                        
  *  ------------------------------------------------------------------------
  *  [x] TODO: tweaking options for generated colors (func + dark-light mode 
@@ -13,16 +14,6 @@
  *  [x] TODO: gen. colors                                                   
  *  [x] TODO: templating                                                    
  *  [x] TODO: parsing                                                       
- *
- * changelog v1.0.3:
- *  - added --json (-j) mode - it prints colors in stdout in json format, REAMDE
- *  - fixed --help, I forgot to add some --cmdline args
- *  - new NEON MODE
- *  - added hellwm template
- *  - added fish template
- *  - changed: README typo
- *  - changed: Makefile - Fixed the order of compiler flags
- *  - changed: hellwal.c - Removed problematic free(pal) line
  *
  * changelog v1.0.2:
  *  - changed ~~arc4random()~~ to rand(), because it's not available on all platforms
@@ -92,7 +83,6 @@
 
 #include <math.h>
 #include <time.h>
-#include <glob.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <libgen.h>
@@ -103,6 +93,14 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <stdlib.h>
+#include <vadefs.h>
+#else
+#include <glob.h>
+#endif
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -219,12 +217,6 @@ char *TEMPLATE_FOLDER_ARG = NULL;
  */
 char *OUTPUT_ARG = NULL;
 
-/* ouputs json formatted colors to stdout,
- * without using templates.
- * https://www.reddit.com/r/unixporn/comments/1h9aawb/comment/m12o2og/
- */
-char *JSON_ARG = NULL;
-
 /* name of theme in THEME_FOLDER_ARG,
  * or (in case was not found) path to file */
 char *THEME_ARG = NULL;
@@ -249,9 +241,6 @@ char *NO_CACHE_ARG = NULL;
 
 /* invert color palette colors */
 char *INVERT_ARG = NULL;
-
-/* neon-like color palette colors */
-char *NEON_MODE_ARG = NULL;
 
 /* Set Static Background colors */
 RGB *STATIC_BG_ARG = NULL;
@@ -293,37 +282,6 @@ char *CACHE_TEMPLATE = "\
 \\%\\%color14 = #%% color14.hex %% \\%\\%\n\
 \\%\\%color15 = #%% color15.hex %% \\%\\%\n";
 
-/* default color template to save cached themes */
-char *JSON_TEMPLATE = 
-"{\n"
-"  \"wallpaper\": \"%% wallpaper %%\",\n"
-"  \"alpha\": \"100\",\n"
-"  \"special\": {\n"
-"    \"background\": \"#%% background %%\",\n"
-"    \"foreground\": \"#%% foreground %%\",\n"
-"    \"cursor\": \"#%% cursor %%\",\n"
-"    \"border\": \"#%% border %%\"\n"
-"  },\n"
-"  \"colors\": {\n"
-"    \"color0\": \"#%% color0.hex %%\",\n"
-"    \"color1\": \"#%% color1.hex %%\",\n"
-"    \"color2\": \"#%% color2.hex %%\",\n"
-"    \"color3\": \"#%% color3.hex %%\",\n"
-"    \"color4\": \"#%% color4.hex %%\",\n"
-"    \"color5\": \"#%% color5.hex %%\",\n"
-"    \"color6\": \"#%% color6.hex %%\",\n"
-"    \"color7\": \"#%% color7.hex %%\",\n"
-"    \"color8\": \"#%% color8.hex %%\",\n"
-"    \"color9\": \"#%% color9.hex %%\",\n"
-"    \"color10\": \"#%% color10.hex %%\",\n"
-"    \"color11\": \"#%% color11.hex %%\",\n"
-"    \"color12\": \"#%% color12.hex %%\",\n"
-"    \"color13\": \"#%% color13.hex %%\",\n"
-"    \"color14\": \"#%% color14.hex %%\",\n"
-"    \"color15\": \"#%% color15.hex %%\"\n"
-"  }\n"
-"}\n";
-
 /*** 
  * FUNCTIONS DECLARATIONS
  ***/
@@ -335,7 +293,6 @@ int set_args(int argc, char *argv[]);
 RGB clamp_rgb(RGB color);
 uint8_t clamp_uint8(int value);
 int is_between_01_float(const char *str);
-float clamp_float(float value, float min, float max);
 
 char *rand_file(char *path);
 char *home_full_path(const char* path);
@@ -357,7 +314,6 @@ void img_free(IMG *img);
 
 /* RGB */
 void print_rgb(RGB col);
-RGB hsl_to_rgb(HSL hsl);
 HSL rgb_to_hsl(RGB color);
 void median_cut(RGB *colors, size_t *starts, size_t *ends, size_t *num_boxes, size_t target_boxes);
 
@@ -431,22 +387,18 @@ void hellwal_usage(const char *name)
     printf("  -l, --light                        Set light mode\n");
     printf("  -c, --color                        Enable colorized mode (experimental)\n");
     printf("  -v, --invert                       Invert colors in the palette\n");
-    printf("  -m, --neon-mode                    Enhance colors for a neon effect\n");
-    printf("  -r, --random                       Pick random image or theme\n");
     printf("  -q, --quiet                        Suppress output\n");
-    printf("  -j, --json                         Prints colors to stdout in json format, it's skipping templates\n");
+    printf("  -r, --random                       Pick random image or theme\n");
     printf("  -s, --script             <script>  Execute script after running hellwal\n");
     printf("  -f, --template-folder    <dir>     Set folder containing templates\n");
     printf("  -o, --output             <dir>     Set output folder for generated templates\n");
     printf("  -t, --theme              <file>    Set theme file or name\n");
-    printf("  -k, --theme-folder       <dir>     Set folder containing themes\n");
+    printf("  -k, --theme-folder       <value>   Set folder containing themes\n");
     printf("  -g, --gray-scale         <value>   Apply grayscale filter   (0-1) (float)\n");
     printf("  -n, --dark-offset        <value>   Adjust darkness offset   (0-1) (float)\n");
     printf("  -b, --bright-offset      <value>   Adjust brightness offset (0-1) (float)\n");
-    printf("  --debug                            Enable debug mode\n");
-    printf("  --no-cache                         Disable caching\n");
-    printf("  --static-background \"#hex\"         Set static background color\n");
-    printf("  --static-foreground \"#hex\"         Set static foreground color\n");
+    printf("  --, --static-background \"#hex\"     Set static background\n");
+    printf("  --, --static-foreground \"#hex\"     Set static foreground\n");
     printf("  -h, --help                         Display this help and exit\n\n");
     printf("Defaults:\n");
     printf("  Template folder: ~/.config/hellwal/templates\n");
@@ -493,18 +445,9 @@ int set_args(int argc, char *argv[])
         {
             INVERT_ARG = "";
         }
-        else if ((strcmp(argv[i], "--neon-mode") == 0 || strcmp(argv[i], "-m") == 0))
-        {
-            NEON_MODE_ARG = "";
-        }
         else if ((strcmp(argv[i], "--random") == 0 || strcmp(argv[i], "-r") == 0))
         {
             RANDOM_ARG = "";
-        }
-        else if ((strcmp(argv[i], "--json") == 0 || strcmp(argv[i], "-j") == 0))
-        {
-            JSON_ARG = "";
-            QUIET_ARG = "";
         }
         else if ((strcmp(argv[i], "--quiet") == 0 || strcmp(argv[i], "-q") == 0))
         {
@@ -700,13 +643,6 @@ void eu(const char *format, ...)
 /* prints to stderr formatted output and exits with EXIT_FAILURE */
 void err(const char *format, ...)
 {
-    /*
-     * ignores QUIET_ARG
-     *
-    if (QUIET_ARG != NULL)
-        return;
-    */
-
     va_list ap;
     va_start(ap, format);
 
@@ -723,9 +659,6 @@ void err(const char *format, ...)
 /* prints to stderr formatted output, but not exits */
 void warn(const char *format, ...)
 {
-    if (QUIET_ARG != NULL)
-        return;
-
     va_list ap;
     va_start(ap, format);
     fprintf(stderr, "\033[93m[WARN]: ");
@@ -783,7 +716,13 @@ void check_output_dir(char *path)
 {
     struct stat st;
     if (stat(path, &st) == -1)
+    {
+#ifdef _WIN32
+        mkdir(path);
+#else
         mkdir(path, 0700);
+#endif
+    }
 }
 
 /* run script from given path */
@@ -798,13 +737,6 @@ void run_script(const char *script)
         log_c("Script \"%s\" exited with code: %d", script, exit_code);
     else
         err("Script \"%s\" exited with code: %d", script, exit_code);
-}
-
-
-/* avoid exceeding max value for float */
-float clamp_float(float value, float min, float max)
-{
-    return value < min ? min : (value > max ? max : value);
 }
 
 /* avoid exceeding max value */
@@ -826,6 +758,12 @@ RGB clamp_rgb(RGB color)
     };
 }
 
+#ifdef _WIN32
+/* get random file from given path (windows) */
+char *rand_file(char *path)
+{
+}
+#else
 /* get random file from given path */
 char *rand_file(char *path)
 {
@@ -868,6 +806,7 @@ char *rand_file(char *path)
 
     return choosen;
 }
+#endif
 
 /* removes whitespaces from buffer */
 void remove_whitespaces(char *str)
@@ -995,37 +934,6 @@ HSL rgb_to_hsl(RGB color)
     }
 
     return hsl;
-}
-
-/* chatgpt generated it xd */
-RGB hsl_to_rgb(HSL hsl)
-{
-    float C = (1 - fabsf(2 * hsl.L - 1)) * hsl.S;
-    float X = C * (1 - fabsf(fmodf(hsl.H / 60.0f, 2) - 1));
-    float m = hsl.L - C / 2;
-
-    float r = 0, g = 0, b = 0;
-
-    if (hsl.H >= 0 && hsl.H < 60) {
-        r = C, g = X, b = 0;
-    } else if (hsl.H >= 60 && hsl.H < 120) {
-        r = X, g = C, b = 0;
-    } else if (hsl.H >= 120 && hsl.H < 180) {
-        r = 0, g = C, b = X;
-    } else if (hsl.H >= 180 && hsl.H < 240) {
-        r = 0, g = X, b = C;
-    } else if (hsl.H >= 240 && hsl.H < 300) {
-        r = X, g = 0, b = C;
-    } else if (hsl.H >= 300 && hsl.H < 360) {
-        r = C, g = 0, b = X;
-    }
-
-    RGB rgb;
-    rgb.R = (uint8_t)((r + m) * 255);
-    rgb.G = (uint8_t)((g + m) * 255);
-    rgb.B = (uint8_t)((b + m) * 255);
-
-    return rgb;
 }
 
 /* function to reverse the palette, used when light mode is specified */
@@ -1464,44 +1372,10 @@ PALETTE gen_palette(IMG *img)
         palette.colors[num_colors++] = new_color;
     }
 
-    if (DEBUG_ARG != NULL)
-        log_c("\n---\n");
-
-    if (NEON_MODE_ARG != NULL)
-    {
-        if (DEBUG_ARG != NULL)
-            log_c("Applying NEON MODE:\n\n");
-
-        for (int i = 0; i < PALETTE_SIZE/2; i++)
-        {
-            if (i > 0)
-            {
-                HSL hsl = rgb_to_hsl(palette.colors[i]);
-
-                if (hsl.L <= 0.1f || hsl.L >= 0.9f)
-                    continue;
-
-                hsl.S = clamp_float(hsl.S * 1.25f, 0.6f, 1.0f);
-                hsl.L = clamp_float(hsl.L * 1.15f, 0.3f, 0.9f);
-
-                palette.colors[i] = hsl_to_rgb(hsl);
-            }
-
-            if (DEBUG_ARG != NULL)
-            {
-                print_rgb(palette.colors[i]);
-                printf(" | (%d, %d, %d)\n", palette.colors[i].R, palette.colors[i].G, palette.colors[i].B);
-            }
-        }
-        if (DEBUG_ARG != NULL)
-            log_c("\n");
-    }
     sort_palette_by_luminance(&palette);
 
     for (int i = PALETTE_SIZE / 2; i < PALETTE_SIZE; i++)
-    {
         palette.colors[i] = lighten_color(palette.colors[i - PALETTE_SIZE / 2], 0.25f);
-    }
 
     return palette;
 }
@@ -1642,6 +1516,10 @@ void set_term_colors(PALETTE pal)
     offset += snprintf(buffer + offset, sizeof(buffer) - offset, fmt_s, 12, cursor_color);
     offset += snprintf(buffer + offset, sizeof(buffer) - offset, fmt_s, 708, border_color);
 
+    // Windows-specific
+#ifdef _WIN32
+    // TODO: // well...
+#else
     /* Broadcast the sequences to all terminal devices */
     size_t succ = 0;
     glob_t globbuf;
@@ -1660,22 +1538,17 @@ void set_term_colors(PALETTE pal)
         globfree(&globbuf);
     }
 
-    /*
-     * Only write to stdout if it's a terminal,
-     * to not conflict with other programs like jq
-     */
-    if (isatty(STDOUT_FILENO))
-    {
-        fwrite(buffer, 1, offset, stdout);
-    }
+    /* Also write to the current terminal */
+    fwrite(buffer, 1, offset, stdout);
 
-    log_c("Set colors to [%d] terminals!", succ+1);
+    log_c("Set colors to [%d] terminals!", succ + 1);
+#endif
 }
 
 /* cache wallpaper color palette */
 void palette_write_cache(char *filepath, PALETTE *p)
 {
-    if (NO_CACHE_ARG != NULL || JSON_ARG != NULL)
+    if (NO_CACHE_ARG != NULL)
         return;
 
     if (filepath == NULL)
@@ -1711,7 +1584,7 @@ void palette_write_cache(char *filepath, PALETTE *p)
     free(full_cache_path);
 }
 
-/* if wallpaper was previously computed, if so, just load it */
+/* if wallpaper was previously computed, just load it */
 int check_cached_palette(char *filepath, PALETTE *p)
 {
     if (NO_CACHE_ARG != NULL)
@@ -1739,13 +1612,11 @@ int check_cached_palette(char *filepath, PALETTE *p)
     char *theme = load_file(full_cache_path);
 
     int result = 1;
-    if (theme == NULL)
-    {
+    if (theme == NULL) {
         warn("Failed to open file: %s", full_cache_path);
         result = 0;
     }
-    else
-    {
+    else {
         /* cached palette is stored as theme */
         result = process_theme(theme, p);
     }
@@ -1800,20 +1671,6 @@ char *load_file(char *filename)
  */
 void process_templating(PALETTE pal)
 {
-    if (JSON_ARG != NULL)
-    {
-        TEMPLATE t;
-        t.content = JSON_TEMPLATE;
-        t.path = "";
-        t.name = "";
-
-        /* printf json template to stdout */
-        process_template(&t, pal);
-        fprintf(stdout, "%s",t.content);
-
-        return;
-    }
-
     if (DEBUG_ARG != NULL)
         log_c("Processing templates: ");
 
@@ -2037,6 +1894,13 @@ void process_template(TEMPLATE *t, PALETTE pal)
     t->content = template_buffer;
 }
 
+#ifdef _WIN32
+/* return array of TEMPLATE structure of files in directory for WINDOWS */
+TEMPLATE **get_template_structure_dir(const char *dir_path, size_t *_size)
+{
+	// TODO: well 2x....
+}
+#else
 /* return array of TEMPLATE structure of files in directory */
 TEMPLATE **get_template_structure_dir(const char *dir_path, size_t *_size)
 {
@@ -2093,6 +1957,7 @@ TEMPLATE **get_template_structure_dir(const char *dir_path, size_t *_size)
 
     return t_arr;
 }
+#endif
 
 /* 
  * write generated template to dir,
@@ -2128,6 +1993,15 @@ size_t template_write(TEMPLATE *t, char *dir)
     return 1;
 }
 
+#ifdef _WIN32
+/*
+ * check in directory for theme with provided name,
+ * if not exist, try to open it as a path - WINDOWS */
+char *load_theme(char *themename)
+{
+	// TODO
+}
+#else
 /*
  * check in directory for theme with provided name,
  * if not exist, try to open it as a path */
@@ -2169,6 +2043,7 @@ char *load_theme(char *themename)
     warn("Failed to open file: %s", themename);
     return NULL;
 }
+#endif
 
 int hex_to_rgb(const char *hex, RGB *p)
 {
@@ -2280,8 +2155,8 @@ int process_theme(char *t, PALETTE *pal)
 
 PALETTE process_themeing(char *theme)
 {
-    char *t = load_theme(theme);
     PALETTE pal;
+    char *t = load_theme(theme);
 
     if (t!=NULL)
     {

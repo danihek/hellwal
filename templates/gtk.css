@@ -1,0 +1,436 @@
+/*
+* GTK Colors
+*/
+
+@define-color window_bg_color #%%color0%%;
+@define-color window_backdrop_color #%%color0%%;
+@define-color window_fg_color #%%color7%%;
+window.csd {
+    background-color: @window_bg_color;
+}
+window.csd:backdrop {
+    background-color: @window_backdrop_color;
+}
+
+@define-color view_bg_color #%%color0%%;
+@define-color view_backdrop_color #%%color0%%;
+@define-color view_fg_color #%%color7%%;
+.content-pane, .content-pane.view, .view {
+    background-color: @view_bg_color;
+}
+.content-pane:backdrop, .content-pane.view:backdrop, .view:backdrop {
+    background-color: @view_backdrop_color;
+}
+
+@define-color accent_color #%%color11%%;
+@define-color accent_bg_color #%%color11%%;
+@define-color accent_fg_color #%%color0%%;
+
+link {
+    color: @accent_bg_color;
+}
+link:hover {
+    color: @accent_color;
+}
+
+/* Toggle Switch */
+switch {
+    padding: 0px 3px;
+}
+switch > slider {
+    min-width: 20px;
+    min-height: 20px;
+    margin: -2px 0px -2px -3px;
+}
+switch:checked > slider {
+    margin: -2px -3px -2px 0px;
+}
+
+/* Window Border and Corner Radius */
+window.csd, dialog.csd,
+window.csd > decoration,
+window.csd > decoration-overlay {
+    border: 2px solid @accent_color;
+}
+window.csd:backdrop, dialog:backdrop.csd,
+window.csd:backdrop > decoration,
+window.csd:backdrop > decoration-overlay {
+    border: 2px solid @accent_color;
+}
+window.csd.maximized, window.csd.maximized > decoration, window.csd.maximized > decoration-overlay,
+window.csd.maximized > headerbar, window.csd.maximized > .top-bar, window.csd.maximized > .titlebar,
+window.csd.fullscreen, window.csd.fullscreen > decoration, window.csd.fullscreen > decoration-overlay,
+window.csd.fullscreen > headerbar, window.csd.fullscreen > .top-bar, window.csd.fullscreen > .titlebar,
+tooltip > decoration, tooltip > decoration-overlay {
+    border: none;
+    outline: none;
+    border-radius: 0px;
+}
+window.csd.tiled, window.csd.tiled-top, window.csd.tiled-right, window.csd.tiled-bottom, window.csd.tiled-left,
+window.csd.tiled > decoration, window.csd.tiled > decoration-overlay,
+window.csd.tiled > headerbar, window.csd.tiled > .top-bar, window.csd.tiled > .titlebar {
+    border-radius: 0px;
+}
+window.csd .tiled-top .tiled-right .tiled-bottom .tiled-left {
+  border: none;
+  outline: none;
+}
+
+window.csd, dialog.csd,
+decoration, decoration-overlay {
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+decoration, decoration-overlay,
+headerbar, .top-bar, .titlebar {
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+}
+window.unified {
+    border-radius: 6px;
+}
+/* Terminal Preferences */
+window > box > box > frame > scrolledwindow > viewport > list, window > box > box > frame > border {
+    border-bottom-left-radius: 6px;
+}
+window > box > box > stack > widget > notebook,
+window > box > box > stack > widget > notebook > stack {
+    border-bottom-right-radius: 6px;
+}
+/* dconf */
+window.dconf-editor .keys-list,
+window.dconf-editor .properties-list {
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+/* Videos */
+window > stack > box > scrolledwindow ,
+window > stack > box > scrolledwindow > iconview {
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+
+window.csd, window:backdrop.csd {
+    border: none;
+}
+window.popup > decoration {
+    border: none;
+    border-radius: 6px;
+}
+
+/* Gnome Terminal */
+terminal-window > decoration {
+    border-bottom-left-radius: 0px;
+    border-bottom-right-radius: 0px;
+    border: 2px solid @accent_color;
+}
+terminal-window:backdrop > decoration {
+    border: 2px solid @accent_color;
+}
+terminal-window.maximized > decoration,
+terminal-window.fullscreen > decoration {
+    border: none;
+    border-radius: 0px;
+}
+terminal-window.tiled > decoration, terminal-window.tiled > headerbar {
+    border-radius: 0px;
+}
+
+.terminal-screen {
+    background-color: @view_bg_color;
+    padding: 5px 15px;
+}
+terminal-window > headerbar {
+    min-height: 0px;
+}
+terminal-window > headerbar .image-button,
+terminal-window:backdrop > headerbar .image-button {
+    background: transparent;
+    background-image: none;
+    border: none;
+    padding: 3px;
+}
+terminal-window > headerbar .image-button:hover {
+    background-image: image(@view_bg_color);
+    color: @view_fg_color;
+}
+terminal-window > headerbar .image-button:checked {
+    background-image: image(@view_bg_color);
+    color: @view_fg_color;
+}
+terminal-window > box > notebook > stack > terminal-screen-container > box > box > scrollbar > contents > trough > slider {
+    min-width: 3px;
+    background-color: alpha(@view_fg_color, 0.75);
+}
+terminal-window > box > notebook > stack > terminal-screen-container > box > box > scrollbar > contents > trough > slider:hover {
+    transition-duration: 250ms;
+    min-width: 8px;
+    background-color: alpha(@view_fg_color, 0.85);
+}
+/* Terminal Tabs */
+terminal-window > box > notebook > header {
+    background-color: @view_bg_color;
+    border: none;
+}
+terminal-window > box > notebook > header > tabs > tab,
+terminal-window > box > notebook > header > tabs > tab > box > button,
+terminal-window > box > notebook > header > box > box > button {
+    color: @view_fg_color;
+}
+terminal-window > box > notebook > header > tabs > tab > box > button:hover,
+terminal-window > box > notebook > header > box > box > button:hover {
+    background-color: shade(@view_bg_color, 1.1);
+    background-image: none;
+    border-color: transparent;
+}
+terminal-window > box > notebook > header > tabs > tab:hover {
+    box-shadow: inset 0 -3px alpha(@view_fg_color, 0.85);
+}
+terminal-window > box > notebook > header > tabs > tab:checked:hover {
+    box-shadow: inset 0 -3px shade(@accent_color, 1.2);
+}
+
+@define-color headerbar_bg_color #%%color0%%;
+@define-color headerbar_backdrop_color #%%color0%%;
+@define-color headerbar_fg_color #%%color7%%;
+
+headerbar,
+.top-bar,
+.titlebar {
+    color: @headerbar_fg_color;
+    background-color: @headerbar_bg_color;
+    background-image: none;
+}
+headerbar:backdrop,
+.top-bar:backdrop,
+.titlebar:backdrop {
+    background-color: @headerbar_backdrop_color;
+}
+headerbar > label, headerbar > box > label {
+    color: @headerbar_fg_color;
+}
+
+headerbar .image-button,
+headerbar > button,
+headerbar > box > button,
+headerbar > box > box > button,
+headerbar > stack > button,
+headerbar > stack > box > button {
+    background-image: image(@headerbar_bg_color);
+    color: @headerbar_fg_color;
+    border-color: alpha(@headerbar_fg_color, 0.1);
+}
+headerbar > entry,
+headerbar > box > entry {
+    background-image: image(@headerbar_bg_color);
+    color: @headerbar_fg_color;
+    border-color: alpha(@headerbar_fg_color, 0.1);
+}
+headerbar:backdrop .image-button,
+headerbar:backdrop > button,
+headerbar:backdrop > box > button, headerbar:backdrop > box > box > button,
+headerbar:backdrop > stack > button, headerbar:backdrop > stack > box > button,
+headerbar:backdrop > entry, headerbar:backdrop > box > entry {
+    background-image: image(@headerbar_bg_color);
+    color: alpha(@headerbar_fg_color, 0.65);
+}
+headerbar > button:disabled,
+headerbar > box > button:disabled, headerbar > box > box > button:disabled,
+headerbar > stack > button:disabled, headerbar > stack > box > button:disabled,
+headerbar > entry:disabled, headerbar > box > entry:disabled {
+    background-image: image(transparent);
+    background-color: transparent;
+    color: alpha(@headerbar_fg_color, 0.5);
+}
+headerbar .image-button:hover,
+headerbar > button:hover,
+headerbar > box > button:hover,
+headerbar > box > box > button:hover,
+headerbar > stack > button:hover,
+headerbar > stack > box > button:hover,
+headerbar > entry:hover, headerbar > box > entry:hover {
+    background-image: image(shade(@headerbar_bg_color, 1.1));
+    border-color: alpha(@headerbar_fg_color, 0.2);
+}
+headerbar .image-button:checked,
+headerbar > button:checked,
+headerbar > box > button:checked, headerbar > box > box > button:checked,
+headerbar > stack > button:checked, headerbar > stack > box > button:checked {
+    background-image: image(shade(@headerbar_bg_color, 1.2));
+    border-color: alpha(@headerbar_fg_color, 0.3);
+}
+headerbar > button.suggested-action,
+headerbar > box > button.suggested-action, headerbar > box > box > button.suggested-action,
+headerbar > stack > button.suggested-action, headerbar > stack > box > button.suggested-action {
+    background-image: image(@accent_bg_color);
+    color: @accent_fg_color;
+}
+headerbar > button.suggested-action:hover,
+headerbar > box > button.suggested-action:hover, headerbar > box > box > button.suggested-action:hover,
+headerbar > stack > button.suggested-action:hover, headerbar > stack > box > button.suggested-action:hover {
+    background-image: image(shade(@accent_bg_color, 1.1));
+    color: shade(@accent_fg_color, 1.1);
+}
+
+@define-color sidebar_bg_color @window_bg_color;
+@define-color sidebar_backdrop_color @window_bg_color;
+@define-color sidebar_fg_color @window_fg_color;
+
+@define-color secondary_sidebar_bg_color @window_bg_color;
+@define-color secondary_sidebar_backdrop_color @window_bg_color;
+@define-color secondary_sidebar_fg_color @window_fg_color;
+
+.sidebar,
+.navigation-sidebar,
+.sidebar-pane,
+.content-pane .sidebar-pane,
+.sidebar-pane .content-pane,
+scrolledwindow>viewport>list /* Gnome Tweaks */ {
+    background-image: linear-gradient(
+        to left, @sidebar_bg_color, @view_bg_color
+    );
+}
+.sidebar:backdrop,
+.navigation-sidebar:backdrop,
+.sidebar-pane:backdrop,
+.content-pane .sidebar-pane:backdrop,
+.sidebar-pane .content-pane:backdrop,
+scrolledwindow>viewport>list:backdrop {
+    background-image: linear-gradient(
+        to left, @sidebar_backdrop_color, @view_bg_color
+    );
+}
+
+.sidebar-pane .card {
+    color: @card_fg_color;
+}
+
+@define-color card_bg_color #%%color0%%;
+@define-color card_backdrop_color #%%color0%%;
+@define-color card_fg_color #%%color7%%;
+
+@define-color dialog_bg_color #%%color0%%;
+@define-color dialog_backdrop_color #%%color0%%;
+@define-color dialog_fg_color #%%color7%%;
+
+@define-color popover_bg_color #%%color0%%;
+@define-color popover_fg_color #%%color7%%;
+popover > contents {
+    box-shadow: 0 2px 4px 0px rgba(0,0,0,0.08);
+    border: 1px solid alpha(@accent_color, 0.3);
+    background-color: @popover_bg_color;
+    color: @popover_fg_color;
+    border-radius: 15px;
+}
+
+window.csd > decoration {
+    border: none;
+}
+window.csd:backdrop > decoration {
+    border: none;
+}
+
+#desktopwindow.background {
+    background-color: transparent;
+    border-radius: 0px;
+}
+
+scrollbar {
+    background-color: transparent;
+}
+
+scrollbar slider {
+    background-color: alpha(@view_fg_color, 0.5);
+    border-radius: 6px;
+    min-width: 6px;
+    min-height: 6px;
+}
+
+scrollbar slider:hover {
+    background-color: alpha(@view_fg_color, 0.8);
+}
+
+scrollbar trough {
+    background-color: transparent;
+}
+
+menu, .menu, popover > contents {
+    border-radius: 6px;
+    box-shadow: 0 2px 8px 0px alpha(@window_bg_color, 0.2);
+    padding: 6px;
+}
+
+menu > menuitem, .menu > menuitem {
+    padding: 6px 12px;
+    border-radius: 4px;
+}
+
+menu > menuitem:hover, .menu > menuitem:hover {
+    background-color: alpha(@accent_color, 0.1);
+}
+
+check, radio {
+    min-width: 16px;
+    min-height: 16px;
+    background-color: @view_bg_color;
+    border: 2px solid @accent_color;
+    border-radius: 4px;
+}
+
+check:checked, radio:checked {
+    background-color: @accent_color;
+}
+
+check:checked > image, radio:checked > image {
+    color: @accent_fg_color;
+}
+
+entry {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid alpha(@window_fg_color, 0.2);
+    background-color: @view_bg_color;
+}
+
+entry:focus {
+    border-color: @accent_color;
+    box-shadow: 0 0 0 2px alpha(@accent_color, 0.2);
+}
+
+progressbar {
+    background-color: alpha(@window_fg_color, 0.1);
+    border-radius: 6px;
+}
+
+progressbar > trough {
+    background-color: transparent;
+}
+
+progressbar > trough > progress {
+    background-color: @accent_color;
+    border-radius: 6px;
+}
+
+separator {
+    background-color: alpha(@window_fg_color, 0.1);
+    min-width: 1px;
+    min-height: 1px;
+}
+
+list row {
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+list row:hover {
+    background-color: alpha(@accent_color, 0.1);
+}
+
+list row:selected {
+    background-color: @accent_color;
+    color: @accent_fg_color;
+}
+
+window.csd {
+    border: 1px solid alpha(@window_fg_color, 0.1);
+}

@@ -1,0 +1,43 @@
+color-link default "#%%color7%%"
+color-link comment "#%%color15%%"
+
+color-link identifier "#%%color14%%"
+color-link identifier.class "#%%color14%%"
+color-link identifier.var "#%%color14%%"
+
+color-link constant "#%%color4%%"
+color-link constant.number "#%%color4%%"
+color-link constant.string "#%%color5%%"
+
+color-link symbol "#%%color12%%"
+color-link symbol.brackets "#%%color3%%"
+color-link symbol.tag "#%%color14%%"
+
+color-link type "#%%color6%%"
+color-link type.keyword "#%%color11%%"
+
+color-link special "#%%color13%%"
+color-link statement "#%%color1%%"
+color-link preproc "#%%color13%%"
+
+color-link underlined "#%%color12%%"
+color-link error "bold #%%color9%%"
+color-link todo "bold #%%color11%%"
+
+color-link diff-added "#%%color5%%"
+color-link diff-modified "#%%color11%%"
+color-link diff-deleted "#%%color1%%"
+
+color-link gutter-error "#%%color9%%"
+color-link gutter-warning "#%%color11%%"
+
+color-link statusline "#%%color7%%,#%%color0%%"
+color-link tabbar "#%%color7%%,#%%color0%%"
+
+color-link indent-char "#%%color8%%"
+color-link line-number "#%%color12%%"
+color-link current-line-number "#%%color14%%"
+
+color-link cursor-line "#%%color8%%,#%%color7%%"
+color-link color-column "#%%color8%%"
+color-link type.extended "default"

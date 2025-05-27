@@ -1871,6 +1871,26 @@ void process_template(TEMPLATE *t, PALETTE pal)
                 }
                 else
                 {
+		    int is_double_delim = 0;
+		    if (p->pos < p->length && p->input[p->pos] == HELLWAL_DELIM)
+                    {
+                        is_double_delim = 1;
+                    }
+                    
+                    if (!is_double_delim)
+                    {
+                        /* It's a single %, just add it to the buffer and continue */
+                        int size_before_delim = p->pos - buffrd_pos;
+                        if (size_before_delim > 0)
+                        {
+                            template_size += size_before_delim + 1;
+                            template_buffer = realloc(template_buffer, template_size);
+                            strncat(template_buffer, p->input + buffrd_pos, size_before_delim);
+                        }
+                        buffrd_pos = p->pos;
+                        continue;
+                    }
+
                     p->pos -= 1;
                     int idx = 0;
                     size_t len = 0;

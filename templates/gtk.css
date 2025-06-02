@@ -22,8 +22,8 @@ window.csd:backdrop {
     background-color: @view_backdrop_color;
 }
 
-@define-color accent_color #%%color11%%;
-@define-color accent_bg_color #%%color11%%;
+@define-color accent_color #%%color13%%;
+@define-color accent_bg_color #%%color13%%;
 @define-color accent_fg_color #%%color0%%;
 
 link {

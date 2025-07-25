@@ -63,6 +63,8 @@ HELL_COLORS_DEF void print_rgb(RGB col);
 
 HELL_COLORS_DEF float calculate_luminance(RGB c);
 HELL_COLORS_DEF float calculate_color_distance(RGB a, RGB b);
+HELL_COLORS_DEF float wcag_luminance_channel(uint8_t value);
+HELL_COLORS_DEF float wcag_calculate_luminance(RGB c);
 
 HELL_COLORS_DEF uint8_t clamp_uint8(int value);
 HELL_COLORS_DEF int compare_luminance(RGB a, RGB b);
@@ -96,7 +98,32 @@ HELL_COLORS_DEF void print_rgb(RGB col)
  */
 HELL_COLORS_DEF float calculate_luminance(RGB c)
 {
-    return (0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B); 
+    return (0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B);
+}
+
+/* Converts an 8bit (0-255) rgb channel value to a format that can be used
+ * to calculate the relative luminance of the color, according to the
+ * WCAG's definition.
+ *
+ * See: https://www.w3.org/WAI/GL/wiki/Relative_luminance
+ */
+HELL_COLORS_DEF float wcag_luminance_channel(uint8_t value)
+{
+    const float fraction = value / 255.0f;
+    return (fraction <= 0.03928f) ? fraction / 12.92f
+                                  : powf((fraction + 0.055f) / 1.055f, 2.4f);
+}
+
+/* Calculate the WCAG's definition of relative luminance for a color.
+ * https://www.w3.org/WAI/GL/wiki/Relative_luminance
+ */
+HELL_COLORS_DEF float wcag_calculate_luminance(RGB c)
+{
+    const float r = wcag_luminance_channel(c.R);
+    const float g = wcag_luminance_channel(c.G);
+    const float b = wcag_luminance_channel(c.B);
+
+    return (0.2126f * r) + (0.7152f * g) + (0.0722f * b);
 }
 
 /* compare luminance of two RGB colors
@@ -124,8 +151,8 @@ HELL_COLORS_DEF int compare_luminance(RGB a, RGB b)
  */
 HELL_COLORS_DEF float calculate_contrast_ratio(RGB a, RGB b)
 {
-    const float lum_a = calculate_luminance(a);
-    const float lum_b = calculate_luminance(b);
+    const float lum_a = wcag_calculate_luminance(a);
+    const float lum_b = wcag_calculate_luminance(b);
 
     if (lum_a == lum_b)
         return 1.0f; /* No need to do more calculations */
@@ -158,7 +185,7 @@ HELL_COLORS_DEF float calculate_contrast_ratio(RGB a, RGB b)
  */
 HELL_COLORS_DEF uint8_t meets_min_text_contrast(RGB a, RGB b)
 {
-    return (calculate_contrast_ratio(a, b) >= 4.5) ? 1 : 0;
+    return calculate_contrast_ratio(a, b) >= 4.5;
 }
 
 /* check Euclidean distance between two colors to ensure diversity */

@@ -1196,7 +1196,7 @@ void check_palette_contrast(PALETTE *palette)
     RGB *const bg = &palette->colors[0];
     RGB *const fg = &palette->colors[PALETTE_SIZE - 1];
 
-    uint8_t dark_bg = compare_luminance(*bg, *fg) == 1 ? 0 : 1;
+    uint8_t dark_bg = wcag_calculate_luminance(*bg) <= wcag_calculate_luminance(*fg);
     uint8_t changed_bg = 0;
 
     int i = 0;
@@ -1233,7 +1233,7 @@ void check_palette_contrast(PALETTE *palette)
                 changed_bg = 1;
             }
 
-            *color = dark_bg ? lighten_color(*color, 0.15) : darken_color(*color, 0.15);
+            *color = dark_bg ? lighten_color(*color, 0.05f) : darken_color(*color, 0.05f);
             i++;
         }
     }

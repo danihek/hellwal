@@ -184,7 +184,7 @@ typedef struct
 } TEMPLATE;
 
 /* COLOR_TYPES - helps to manage colors within the code */
-enum COLOR_TYPES { HEX_t, RGB_t };
+enum COLOR_TYPES { HEX_t, RGB_t, R_t, G_t, B_t };
 
 /***
  * GLOBAL VARIABLES
@@ -409,6 +409,7 @@ void check_palette_contrast(PALETTE *palette);
 char *load_file(char *filename);
 void process_templating(PALETTE pal);
 size_t template_write(TEMPLATE *t, char *dir);
+enum COLOR_TYPES parse_color_type(const char *str);
 void process_template(TEMPLATE *t, PALETTE pal);
 TEMPLATE **get_template_structure_dir(const char *dir_path, size_t *_size);
 
@@ -1517,13 +1518,22 @@ char *palette_color(PALETTE pal, unsigned c, enum COLOR_TYPES type)
     char *rgb_fmt = "%d, %d, %d";
     char *buffer = (char*)malloc(64);
 
-    if (type == HEX_t)
-    {
+    switch (type) {
+    case HEX_t:
         sprintf(buffer, hex_fmt, pal.colors[c].R, pal.colors[c].G, pal.colors[c].B);
-    }
-    else
-    {
+        break;
+    case RGB_t:
         sprintf(buffer, rgb_fmt, pal.colors[c].R, pal.colors[c].G, pal.colors[c].B);
+        break;
+    case R_t:
+        sprintf(buffer, "%d", pal.colors[c].R);
+        break;
+    case G_t:
+        sprintf(buffer, "%d", pal.colors[c].G);
+        break;
+    case B_t:
+        sprintf(buffer, "%d", pal.colors[c].B);
+        break;
     }
 
     return buffer;
@@ -1776,13 +1786,11 @@ char *process_addtional_variables(char *color, char *right_token, enum COLOR_TYP
 
 char *process_variable_alpha(char *color, char *value, enum COLOR_TYPES type)
 {
-    float alpha_value = 1.f;
-    char *buffer = NULL;
-
-    if (is_between_01_float(value))
-        alpha_value = strtod(value, NULL);
-    else
+    if ((type != HEX_t && type != RGB_t) || !is_between_01_float(value))
         return color;
+
+    const float alpha_value = strtod(value, NULL);
+    char *buffer = NULL;
 
     if (type == HEX_t)
     {
@@ -1791,7 +1799,7 @@ char *process_variable_alpha(char *color, char *value, enum COLOR_TYPES type)
         int a = (int)(alpha_value * 255);
         sprintf(buffer, "%s%02x", color, a);
     }
-    else // if its not hex we are assuming its rgb
+    else // we can safely assume it's rgb
     {
         buffer = malloc(sizeof(color) + sizeof(",    "));
         sprintf(buffer, "%s, %f", color, alpha_value);
@@ -1880,6 +1888,20 @@ void process_templating(PALETTE pal)
     log_c("Processed [%d/%d] templates!", t_success, templates_count);
 }
 
+enum COLOR_TYPES parse_color_type(const char *str)
+{
+    if (!strcmp(str, "rgb"))
+        return RGB_t;
+
+    switch (str[0]) {
+    case 'r': return R_t;
+    case 'g': return G_t;
+    case 'b': return B_t;
+    }
+
+    return HEX_t;
+}
+
 /* load t->path file to buffer and replaces content between delim with colors from PALETTE colors */
 void process_template(TEMPLATE *t, PALETTE pal)
 {
@@ -1965,7 +1987,7 @@ void process_template(TEMPLATE *t, PALETTE pal)
                     size_t len = 0;
                     char *var_arg = NULL;
                     char *delim_buf = NULL;
-                    enum COLOR_TYPES type = HEX_t; // 0 means hex, 1 means rgb
+                    enum COLOR_TYPES type = HEX_t;
 
                     last_pos = p->pos + 1;
 
@@ -2080,40 +2102,25 @@ void process_template(TEMPLATE *t, PALETTE pal)
                             remove_whitespaces(left);
                             remove_whitespaces(right);
 
+                            /*
+                             * Checks if the color keyword is valid.
+                             * Also checks if there is a color type, and defaults to hex if not.
+                             */
                             idx = is_color_palette_var(left);
-                            if (idx != -1 && pd->pos + 1 < pd->length)
+                            if (idx != -1 && pd->pos < pd->length)
                             {
-                                /* 
-                                 * check if after '.' is rgb, if yes get output as rgb,
-                                 * if not output will always be hex
-                                 */
-                                if (!strcmp(right, "rgb"))
-                                {
-                                    var_arg = palette_color(pal, idx, RGB_t);
-                                    type = RGB_t;
-                                }
-                                else
-                                    var_arg = palette_color(pal, idx, HEX_t);
+                                type = parse_color_type(right);
+                                var_arg = palette_color(pal, idx, type);
                             }
                             else if (!strcmp(left, "foreground") || !strcmp(left, "cursor") || !strcmp(left, "border"))
                             {
-                                if (!strcmp(right, "rgb"))
-                                {
-                                    var_arg = palette_color(pal, PALETTE_SIZE - 1, RGB_t);
-                                    type = RGB_t;
-                                }
-                                else
-                                    var_arg = palette_color(pal, PALETTE_SIZE - 1, HEX_t);
+                                type = parse_color_type(right);
+                                var_arg = palette_color(pal, PALETTE_SIZE - 1, type);
                             }
                             else if (!strcmp(left, "background"))
                             {
-                                if (!strcmp(right, "rgb"))
-                                {
-                                    var_arg = palette_color(pal, 0, RGB_t);
-                                    type = RGB_t;
-                                }
-                                else
-                                    var_arg = palette_color(pal, 0, HEX_t);
+                                type = parse_color_type(right);
+                                var_arg = palette_color(pal, 0, type);
                             }
 
                             free(left);

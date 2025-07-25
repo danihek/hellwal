@@ -100,8 +100,8 @@ color15butRGB='%%color15.rgb%%'
 
 You can get any generated color for values 0 to 15.
 
-After the color keyword, you can specify the format: hex or rgb. By default, the template output
-is in hex.
+After the color keyword, you can specify the format: hex, rgb, or a single rgb channel.
+By default, the template output is in hex.
 
 ### Available color template formats:
 
@@ -109,6 +109,9 @@ is in hex.
 | ---- | ---------- | ------- |
 | hex  | color0.hex | 000000  |
 | rgb  | color0.rgb | 0, 0, 0 |
+| r    | color0.r   | 0       |
+| g    | color0.g   | 0       |
+| b    | color0.b   | 0       |
 
 ### Additional variables accepted by templates
 
@@ -118,6 +121,8 @@ For now these variables are available:
 | Variable | Description            | Usage                        |
 | -------- | ---------------------- | ---------------------------- |
 | alpha    | Set transparency value | `%% color1.hex alpha=0.5 %%` |
+
+`alpha` is ignored for single rgb channels.
 
 ## JSON
 

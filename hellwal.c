@@ -194,87 +194,118 @@ enum COLOR_TYPES { HEX_t, RGB_t, R_t, G_t, B_t };
 char HELLWAL_DELIM = '%';
 char HELLWAL_DELIM_COUNT = 2;
 
-/* image path, which will be used to create PALETTE */
-char *IMAGE_ARG = NULL;
+// FLAGS
 
-/* quiet arg, if NULL you will get verbose output,
- * otherwise its going to print everthing normally 
- */
-char *QUIET_ARG = NULL;
+struct {
+    /* image path, which will be used to create PALETTE */
+    char *IMAGE;
 
-/* if used, it will skip
- * setting colors to terminals */
-char *SKIP_TERM_COLORS = NULL;
+    /*
+     * quiet arg, if NULL you will get verbose output,
+     * otherwise its going to print everthing normally 
+     */
+    uint8_t QUIET : 1;
 
-/* if used, colors will not be sorted by luminance,
- * aka brightness, so colors are harder to control,
- * but some people may want it */
-char *SKIP_LUMINANCE_SORTING_ARG = NULL;
+    /* if used, it will skip
+     * setting colors to terminals */
+    uint8_t SKIP_TERM_COLORS : 1;
 
-/* darkmode, lightmode and colormode - darkmode is default */
-char *DARK_ARG  = NULL;
-char *LIGHT_ARG = NULL;
-char *COLOR_ARG = NULL;
+    /* if used, colors will not be sorted by luminance,
+     * aka brightness, so colors are harder to control,
+     * but some people may want it */
+    uint8_t SKIP_LUMINANCE_SORTING : 1;
 
-/* folder that contains templates */
-char *TEMPLATE_FOLDER_ARG = NULL;
+    /* darkmode, lightmode and colormode - darkmode is default */
+    uint8_t DARK_MODE  : 1;
+    uint8_t LIGHT_MODE : 1;
+    uint8_t COLOR_MODE : 1;
 
-/* 
- * output folder for generated templates,
- * default one is in ~/.cache/hellwal/
- */
-char *OUTPUT_ARG = NULL;
+    /* folder that contains templates */
+    char *TEMPLATE_FOLDER;
 
-/* ouputs json formatted colors to stdout,
- * without using templates.
- * https://www.reddit.com/r/unixporn/comments/1h9aawb/comment/m12o2og/
- */
-char *JSON_ARG = NULL;
+    /* 
+     * output folder for generated templates,
+     * default one is in ~/.cache/hellwal/
+     */
+    char *OUTPUT;
 
-/* name of theme in THEME_FOLDER_ARG,
- * or (in case was not found) path to file */
-char *THEME_ARG = NULL;
+    /* ouputs json formatted colors to stdout,
+     * without using templates.
+     * https://www.reddit.com/r/unixporn/comments/1h9aawb/comment/m12o2og/
+     */
+    uint8_t JSON : 1;
 
-/* folder that contains static themes */
-char *THEME_FOLDER_ARG  = NULL;
+    /* name of theme in ARGS.THEME_FOLDER,
+     * or (in case was not found) path to file */
+    char *THEME;
 
-/* pick random THING (image or theme) of provided folder path:
- *   - provide path to IMG using *IMAGE_ARG
- *   - or *THEME_FOLDER_ARG
- */
-char *RANDOM_ARG = NULL;
+    /* folder that contains static themes */
+    char *THEME_FOLDER;
 
-/* enables more verbose output, to see what's going on */
-char *DEBUG_ARG = NULL;
+    /* pick random THING (image or theme) of provided folder path:
+     *   - provide path to IMG using *ARGS.IMAGE
+     *   - or *ARGS.THEME_FOLDER
+     */
+    uint8_t RANDOM : 1;
 
-/* run script after successfull hellwal job */
-char *SCRIPT_ARG = NULL;
+    /* enables more verbose output, to see what's going on */
+    uint8_t DEBUG : 1;
 
-/* do not cache palette, do not read cached palettes */
-char *NO_CACHE_ARG = NULL;
+    /* run script after successfull hellwal job, requires path */
+    char *SCRIPT;
 
-/* invert color palette colors */
-char *INVERT_ARG = NULL;
+    /* do not cache palette, do not read cached palettes */
+    uint8_t NO_CACHE : 1;
 
-/* neon-like color palette colors */
-char *NEON_MODE_ARG = NULL;
+    /* invert color palette colors */
+    uint8_t INVERT : 1;
 
-/* Set Static Background colors */
-RGB *STATIC_BG_ARG = NULL;
+    /* neon-like color palette colors */
+    uint8_t NEON_MODE : 1;
 
-/* Set Static Foreground colors */
-RGB *STATIC_FG_ARG = NULL;
+    /* Set Static Background colors */
+    RGB *STATIC_BG;
 
-/* make sure colors contrast well with the background */
-char *CHECK_CONTRAST_ARG = NULL;
+    /* Set Static Foreground colors */
+    RGB *STATIC_FG;
 
-/* defines 'grayness' of colorpalette */
-float GRAY_SCALE_ARG = -1;
+    /* make sure colors contrast well with the background */
+    uint8_t CHECK_CONTRAST : 1;
 
-/* defines offsets to manipulate darkness and brightness */
-float BRIGHTNESS_OFFSET_ARG = -1;
-float DARKNESS_OFFSET_ARG = -1;
-float OFFSET_GLOBAL = 0;
+    /* defines 'grayness' of colorpalette */
+    float GRAY_SCALE;
+
+    /* defines offsets to manipulate darkness and brightness */
+    float BRIGHTNESS_OFFSET;
+    float DARKNESS_OFFSET;
+    float OFFSET_GLOBAL;
+} ARGS = {
+    .IMAGE = NULL,
+    .QUIET = 0,
+    .SKIP_TERM_COLORS = 0,
+    .SKIP_LUMINANCE_SORTING = 0,
+    .DARK_MODE = 1,  // Defaulting to dark mode
+    .LIGHT_MODE = 0,
+    .COLOR_MODE = 0,
+    .TEMPLATE_FOLDER = NULL,
+    .OUTPUT = NULL,
+    .JSON = 0,
+    .THEME = NULL,
+    .THEME_FOLDER = NULL,
+    .RANDOM = 0,
+    .DEBUG = 0,
+    .SCRIPT = NULL,
+    .NO_CACHE = 0,
+    .INVERT = 0,
+    .NEON_MODE = 0,
+    .STATIC_BG = NULL,
+    .STATIC_FG = NULL,
+    .CHECK_CONTRAST = 0,
+    .GRAY_SCALE = -1.0f,
+    .BRIGHTNESS_OFFSET = -1.0f,
+    .DARKNESS_OFFSET = -1.0f,
+    .OFFSET_GLOBAL = 0.0f
+};
 
 /* default color template to save cached themes */
 char *CACHE_TEMPLATE = "\
@@ -479,7 +510,7 @@ int set_args(int argc, char *argv[])
         else if ((strcmp(argv[i], "--image") == 0 || strcmp(argv[i], "-i") == 0))
         {
             if (i + 1 < argc)
-                IMAGE_ARG = argv[++i];
+                ARGS.IMAGE = argv[++i];
             else {
                 argc = -1;
             }
@@ -492,52 +523,52 @@ int set_args(int argc, char *argv[])
         else if ((strcmp(argv[i], "--dark") == 0 || strcmp(argv[i], "-d") == 0))
         {
             /* anything other than NULL, makes dark mode */
-            DARK_ARG = "";
+            ARGS.DARK_MODE = 1;
         }
         else if ((strcmp(argv[i], "--light") == 0 || strcmp(argv[i], "-l") == 0))
         {
-            LIGHT_ARG = "";
+            ARGS.LIGHT_MODE = 1;
         }
         else if ((strcmp(argv[i], "--color") == 0 || strcmp(argv[i], "-c") == 0))
         {
-            COLOR_ARG = "";
+            ARGS.COLOR_MODE = 1;
         }
         else if ((strcmp(argv[i], "--invert") == 0 || strcmp(argv[i], "-v") == 0))
         {
-            INVERT_ARG = "";
+            ARGS.INVERT = 1;
         }
         else if ((strcmp(argv[i], "--neon-mode") == 0 || strcmp(argv[i], "-m") == 0))
         {
-            NEON_MODE_ARG = "";
+            ARGS.NEON_MODE = 1;
         }
         else if (strcmp(argv[i], "--check-contrast") == 0)
         {
-            CHECK_CONTRAST_ARG = "";
+            ARGS.CHECK_CONTRAST = 1;
         }
         else if ((strcmp(argv[i], "--random") == 0 || strcmp(argv[i], "-r") == 0))
         {
-            RANDOM_ARG = "";
+            ARGS.RANDOM = 1;
         }
         else if ((strcmp(argv[i], "--json") == 0 || strcmp(argv[i], "-j") == 0))
         {
-            JSON_ARG = "";
-            QUIET_ARG = "";
+            ARGS.JSON = 1;
+            ARGS.QUIET = 1;
         }
         else if ((strcmp(argv[i], "--quiet") == 0 || strcmp(argv[i], "-q") == 0))
         {
-            QUIET_ARG = "";
+            ARGS.QUIET = 1;
         }
         else if (strcmp(argv[i], "--skip-term-colors") == 0)
         {
-            SKIP_TERM_COLORS = "";
+            ARGS.SKIP_TERM_COLORS = 1;
         }
         else if (strcmp(argv[i], "--skip-luminance-sort") == 0)
         {
-            SKIP_LUMINANCE_SORTING_ARG = "";
+            ARGS.SKIP_LUMINANCE_SORTING = 1;
         }
         else if (strcmp(argv[i], "--debug") == 0)
         {
-            DEBUG_ARG = "";
+            ARGS.DEBUG = 1;
         }
         else if (strcmp(argv[i], "--preview") == 0)
         {
@@ -551,12 +582,12 @@ int set_args(int argc, char *argv[])
         }
         else if (strcmp(argv[i], "--no-cache") == 0)
         {
-            NO_CACHE_ARG = "";
+            ARGS.NO_CACHE = 1;
         }
         else if ((strcmp(argv[i], "--template-folder") == 0 || strcmp(argv[i], "-f") == 0))
         {
             if (i + 1 < argc)
-                TEMPLATE_FOLDER_ARG = argv[++i];
+                ARGS.TEMPLATE_FOLDER = argv[++i];
             else {
                 argc = -1;
             }
@@ -564,7 +595,7 @@ int set_args(int argc, char *argv[])
         else if ((strcmp(argv[i], "--output") == 0 || strcmp(argv[i], "-o") == 0))
         {
             if (i + 1 < argc)
-                OUTPUT_ARG = argv[++i];
+                ARGS.OUTPUT = argv[++i];
             else {
                 argc = -1;
             }
@@ -572,7 +603,7 @@ int set_args(int argc, char *argv[])
         else if ((strcmp(argv[i], "--theme") == 0 || strcmp(argv[i], "-t") == 0))
         {
             if (i + 1 < argc)
-                THEME_ARG = argv[++i];
+                ARGS.THEME = argv[++i];
             else {
                 argc = -1;
             }
@@ -580,7 +611,7 @@ int set_args(int argc, char *argv[])
         else if ((strcmp(argv[i], "--theme-folder") == 0 || strcmp(argv[i], "-k") == 0))
         {
             if (i + 1 < argc)
-                THEME_FOLDER_ARG = argv[++i];
+                ARGS.THEME_FOLDER = argv[++i];
             else {
                 argc = -1;
             }
@@ -588,7 +619,7 @@ int set_args(int argc, char *argv[])
         else if ((strcmp(argv[i], "--script") == 0 || strcmp(argv[i], "-s") == 0))
         {
             if (i + 1 < argc)
-                SCRIPT_ARG = argv[++i];
+                ARGS.SCRIPT = argv[++i];
             else
                 argc = -1;
         }
@@ -597,7 +628,7 @@ int set_args(int argc, char *argv[])
             if (i + 1 < argc)
             {
                 if (is_between_01_float(argv[++i]))
-                    DARKNESS_OFFSET_ARG = strtod(argv[i], NULL);
+                    ARGS.DARKNESS_OFFSET = strtod(argv[i], NULL);
                 else
                     warn("Dark offset value have to be floating point number between 0-1!, skipping argument.");
             }
@@ -609,7 +640,7 @@ int set_args(int argc, char *argv[])
             if (i + 1 < argc)
             {
                 if (is_between_01_float(argv[++i]))
-                    BRIGHTNESS_OFFSET_ARG = strtod(argv[i], NULL);
+                    ARGS.BRIGHTNESS_OFFSET = strtod(argv[i], NULL);
                 else
                     warn("Bright offset value have to be floating point number between 0-1!, skipping argument.");
             }
@@ -621,7 +652,7 @@ int set_args(int argc, char *argv[])
             if (i + 1 < argc)
             {
                 if (is_between_01_float(argv[++i]))
-                    GRAY_SCALE_ARG = strtod(argv[i], NULL);
+                    ARGS.GRAY_SCALE = strtod(argv[i], NULL);
                 else
                     warn("Grayscale value have to be floating point number between 0-1!, skipping argument.");
             }
@@ -632,10 +663,10 @@ int set_args(int argc, char *argv[])
         {
             if (i + 1 < argc)
             {
-                STATIC_BG_ARG = calloc(1, sizeof(RGB));
-                if (!hex_to_rgb(argv[++i], STATIC_BG_ARG))
+                ARGS.STATIC_BG = calloc(1, sizeof(RGB));
+                if (!hex_to_rgb(argv[++i], ARGS.STATIC_BG))
                 {
-                    free(STATIC_BG_ARG);
+                    free(ARGS.STATIC_BG);
                     err("Failed to parse static background: %s", argv[i-1]);
                 }
             }
@@ -648,10 +679,10 @@ int set_args(int argc, char *argv[])
         {
             if (i + 1 < argc)
             {
-                STATIC_FG_ARG = calloc(1, sizeof(RGB));
-                if (!hex_to_rgb(argv[++i], STATIC_FG_ARG))
+                ARGS.STATIC_FG = calloc(1, sizeof(RGB));
+                if (!hex_to_rgb(argv[++i], ARGS.STATIC_FG))
                 {
-                    free(STATIC_FG_ARG);
+                    free(ARGS.STATIC_FG);
                     err("Failed to parse static foreground: %s", argv[i-1]);
                 }
             }
@@ -669,45 +700,45 @@ int set_args(int argc, char *argv[])
         err("Incomplete option: %s", argv[j]);
 
     /* handle needed arguments and warns - idk how to do this the other way */
-    if (RANDOM_ARG != NULL && (THEME_FOLDER_ARG == NULL && IMAGE_ARG == NULL))
+    if (ARGS.RANDOM != 0 && (ARGS.THEME_FOLDER == NULL && ARGS.IMAGE == NULL))
         err("you have to specify --image to provide image folder or --theme-folder to use RANDOM");
 
-    if (IMAGE_ARG == NULL && THEME_ARG == NULL && ((THEME_FOLDER_ARG == NULL || TEMPLATE_FOLDER_ARG == NULL) && RANDOM_ARG == NULL))
+    if (ARGS.IMAGE == NULL && ARGS.THEME == NULL && ((ARGS.THEME_FOLDER == NULL || ARGS.TEMPLATE_FOLDER == NULL) && ARGS.RANDOM == 0))
         err("You have to provide image file or theme!:  --image,  --theme, \n\t");
 
-    if ((THEME_ARG != NULL || THEME_FOLDER_ARG != NULL) && IMAGE_ARG != NULL)
+    if ((ARGS.THEME != NULL || ARGS.THEME_FOLDER != NULL) && ARGS.IMAGE != NULL)
     {
-        if (THEME_FOLDER_ARG != NULL)
+        if (ARGS.THEME_FOLDER != NULL)
             err("you cannot use both --image and --theme-folder");
         else
             err("you cannot use both --image and --theme");
     }
 
-    if (RANDOM_ARG != NULL && THEME_ARG != NULL)
-        warn("specified theme is not used: \"%s\"", THEME_ARG);
+    if (ARGS.RANDOM != 0 && ARGS.THEME != NULL)
+        warn("specified theme is not used: \"%s\"", ARGS.THEME);
 
-    if (THEME_ARG == NULL && THEME_FOLDER_ARG != NULL && RANDOM_ARG == NULL)
-        warn("specified theme folder is not used: \"%s\", you also have to provide --theme", THEME_FOLDER_ARG);
+    if (ARGS.THEME == NULL && ARGS.THEME_FOLDER != NULL && ARGS.RANDOM == 0)
+        warn("specified theme folder is not used: \"%s\", you also have to provide --theme", ARGS.THEME_FOLDER);
 
     /* if RANDOM, get file */
-    if (RANDOM_ARG != NULL)
+    if (ARGS.RANDOM != 0)
     {
-        if (IMAGE_ARG != NULL)
-            IMAGE_ARG = rand_file(IMAGE_ARG);
+        if (ARGS.IMAGE != NULL)
+            ARGS.IMAGE = rand_file(ARGS.IMAGE);
         else
-            THEME_ARG = rand_file(THEME_FOLDER_ARG);
+            ARGS.THEME = rand_file(ARGS.THEME_FOLDER);
     }
 
     /* set offset values - you can provide both, but they will interfier with each other */
-    if (DARKNESS_OFFSET_ARG != -1)
-        OFFSET_GLOBAL -= DARKNESS_OFFSET_ARG;
-    if (BRIGHTNESS_OFFSET_ARG != -1)
-        OFFSET_GLOBAL += BRIGHTNESS_OFFSET_ARG;
+    if (ARGS.DARKNESS_OFFSET != -1)
+        ARGS.OFFSET_GLOBAL -= ARGS.DARKNESS_OFFSET;
+    if (ARGS.BRIGHTNESS_OFFSET != -1)
+        ARGS.OFFSET_GLOBAL += ARGS.BRIGHTNESS_OFFSET;
 
     /* If not specified, set default ones */
-    SET_DEF(OUTPUT_ARG, "~/.cache/hellwal/");
-    SET_DEF(THEME_FOLDER_ARG , "~/.config/hellwal/themes");
-    SET_DEF(TEMPLATE_FOLDER_ARG, "~/.config/hellwal/templates");
+    SET_DEF(ARGS.OUTPUT, "~/.cache/hellwal/");
+    SET_DEF(ARGS.THEME_FOLDER , "~/.config/hellwal/themes");
+    SET_DEF(ARGS.TEMPLATE_FOLDER, "~/.config/hellwal/templates");
 
     return 0;
 }
@@ -755,7 +786,7 @@ void print_term_colors_small()
 /* Writes color as block to stdout - it does not perform new line by itself */
 void print_color(RGB col)
 {
-    if (QUIET_ARG != NULL)
+    if (ARGS.QUIET != 0)
         return;
 
     char *color_block = "   ";                  // color_block is 3 spaces wide
@@ -788,9 +819,9 @@ void eu(const char *format, ...)
 void err(const char *format, ...)
 {
     /*
-     * ignores QUIET_ARG
+     * ignores ARGS.QUIET
      *
-     if (QUIET_ARG != NULL)
+     if (ARGS.QUIET != 0)
      return;
      */
 
@@ -810,7 +841,7 @@ void err(const char *format, ...)
 /* prints to stderr formatted output, but not exits */
 void warn(const char *format, ...)
 {
-    if (QUIET_ARG != NULL)
+    if (ARGS.QUIET != 0)
         return;
 
     va_list ap;
@@ -826,7 +857,7 @@ void warn(const char *format, ...)
 /* prints formatted output to stdout with colors */
 void log_c(const char *format, ...)
 {
-    if (QUIET_ARG != NULL)
+    if (ARGS.QUIET != 0)
         return;
 
     va_list ap;
@@ -1015,7 +1046,7 @@ int _compare_luminance_qsort(const void *a, const void *b)
 /* sort palette by luminance to spread out colors */
 void sort_palette_by_luminance(PALETTE *palette)
 {
-    if (SKIP_LUMINANCE_SORTING_ARG != NULL) return;
+    if (ARGS.SKIP_LUMINANCE_SORTING != 0) return;
 
     qsort(palette->colors, PALETTE_SIZE/2, sizeof(RGB), _compare_luminance_qsort);
 }
@@ -1106,19 +1137,19 @@ void invert_palette(PALETTE *p)
 
 RGB apply_grayscale(RGB c)
 {
-    return saturate_color(c, GRAY_SCALE_ARG);
+    return saturate_color(c, ARGS.GRAY_SCALE);
 }
 
 /* if user provided OFFSET value, apply it to color */
 RGB apply_offsets(RGB c)
 {
-    if (OFFSET_GLOBAL == 0)
+    if (ARGS.OFFSET_GLOBAL == 0)
         return c;
 
-    if (OFFSET_GLOBAL < 0)
-        c = darken_color(c, -1 * OFFSET_GLOBAL);
-    else if (OFFSET_GLOBAL > 0)
-        c = lighten_color(c, 0.25f + OFFSET_GLOBAL);
+    if (ARGS.OFFSET_GLOBAL < 0)
+        c = darken_color(c, -1 * ARGS.OFFSET_GLOBAL);
+    else if (ARGS.OFFSET_GLOBAL > 0)
+        c = lighten_color(c, 0.25f + ARGS.OFFSET_GLOBAL);
 
     return c;
 }
@@ -1202,17 +1233,17 @@ void check_palette_contrast(PALETTE *palette)
     int i = 0;
 
     /* Ensure contrast between the foreground and background */
-    if (STATIC_BG_ARG == NULL || STATIC_FG_ARG == NULL)
+    if (ARGS.STATIC_BG == NULL || ARGS.STATIC_FG == NULL)
     {
         while (!meets_min_text_contrast(*fg, *bg) && i < 10)
         {
-            if (STATIC_BG_ARG == NULL)
+            if (ARGS.STATIC_BG == NULL)
             {
                 *bg = dark_bg ? darken_color(*bg, 0.15) : lighten_color(*bg, 0.15);
                 changed_bg = 1;
             }
 
-            if (STATIC_FG_ARG == NULL)
+            if (ARGS.STATIC_FG == NULL)
                 *fg = dark_bg ? lighten_color(*fg, 0.15) : darken_color(*fg, 0.15);
 
             i++;
@@ -1227,7 +1258,7 @@ void check_palette_contrast(PALETTE *palette)
 
         while (!meets_min_text_contrast(*color, *bg) && i < 5)
         {
-            if (STATIC_BG_ARG == NULL && !changed_bg)
+            if (ARGS.STATIC_BG == NULL && !changed_bg)
             {
                 *bg = dark_bg ? darken_color(*bg, 0.15) : lighten_color(*bg, 0.15);
                 changed_bg = 1;
@@ -1241,16 +1272,16 @@ void check_palette_contrast(PALETTE *palette)
 
 PALETTE get_color_palette(PALETTE p)
 {
-    if (THEME_ARG)
+    if (ARGS.THEME)
     {
-        p = process_themeing(THEME_ARG); /* if true, program end's here */
+        p = process_themeing(ARGS.THEME); /* if true, program end's here */
     }
     else
     {
-        if (!check_cached_palette(IMAGE_ARG, &p)) {
-            IMG *img = img_load(IMAGE_ARG);
+        if (!check_cached_palette(ARGS.IMAGE, &p)) {
+            IMG *img = img_load(ARGS.IMAGE);
             p = gen_palette(img);
-            palette_write_cache(IMAGE_ARG, &p);
+            palette_write_cache(ARGS.IMAGE, &p);
             img_free(img);
         }
     }
@@ -1265,43 +1296,43 @@ void apply_addtional_arguments(PALETTE *p)
         p->colors[i] = lighten_color(p->colors[i - PALETTE_SIZE / 2], 0.25f);
 
     /* Handle dark/light or color mode */
-    if (THEME_ARG == NULL &&
-            (LIGHT_ARG == NULL && COLOR_ARG == NULL && DARK_ARG == NULL))
-        DARK_ARG = "";
+    if (ARGS.THEME == NULL &&
+            (ARGS.LIGHT_MODE == 0 && ARGS.COLOR_MODE == 0 && ARGS.DARK_MODE == 0))
+        ARGS.DARK_MODE = 1;
     
-    if (NEON_MODE_ARG != NULL)
+    if (ARGS.NEON_MODE != 0)
         palette_handle_neon_mode(p);
-    if (DARK_ARG  != NULL)
+    if (ARGS.DARK_MODE  != 0)
         palette_handle_dark_mode(p);
-    if (LIGHT_ARG != NULL)
+    if (ARGS.LIGHT_MODE != 0)
         palette_handle_light_mode(p);
-    if (COLOR_ARG != NULL)
+    if (ARGS.COLOR_MODE != 0)
         palette_handle_color_mode(p);
 
-    /* invert palette, if INVERT_ARG */
-    if (INVERT_ARG != NULL)
+    /* invert palette, if ARGS.INVERT */
+    if (ARGS.INVERT != 0)
         invert_palette(p);
 
-    if (OFFSET_GLOBAL != 0 || GRAY_SCALE_ARG != -1)
+    if (ARGS.OFFSET_GLOBAL != 0 || ARGS.GRAY_SCALE != -1)
     {
         for (int i = 0; i < PALETTE_SIZE; i++)
         {
             /* apply offsets */
-            if (OFFSET_GLOBAL != 0)
+            if (ARGS.OFFSET_GLOBAL != 0)
                 p->colors[i] = apply_offsets(p->colors[i]);
 
             /* apply grayscale value */
-            if (GRAY_SCALE_ARG != -1)
+            if (ARGS.GRAY_SCALE != -1)
                 p->colors[i] = apply_grayscale(p->colors[i]);
         }
     }
 
-    if (STATIC_BG_ARG != NULL)
-        p->colors[0] = *STATIC_BG_ARG;
-    if (STATIC_FG_ARG != NULL)
-        p->colors[PALETTE_SIZE-1] = *STATIC_FG_ARG;
+    if (ARGS.STATIC_BG != NULL)
+        p->colors[0] = *ARGS.STATIC_BG;
+    if (ARGS.STATIC_FG != NULL)
+        p->colors[PALETTE_SIZE-1] = *ARGS.STATIC_FG;
 
-    if (CHECK_CONTRAST_ARG != NULL)
+    if (ARGS.CHECK_CONTRAST != 0)
         check_palette_contrast(p);
 }
 
@@ -1353,7 +1384,7 @@ void palette_handle_dark_mode(PALETTE *p)
 
 void palette_handle_neon_mode(PALETTE *p)
 {
-        if (DEBUG_ARG != NULL)
+        if (ARGS.DEBUG != 0)
             log_c("Applying NEON MODE:\n\n");
 
         for (int i = 0; i < PALETTE_SIZE/2; i++)
@@ -1371,13 +1402,13 @@ void palette_handle_neon_mode(PALETTE *p)
                 p->colors[i] = hsl_to_rgb(hsl);
             }
 
-            if (DEBUG_ARG != NULL)
+            if (ARGS.DEBUG != 0)
             {
                 print_color(p->colors[i]);
                 printf(" | (%d, %d, %d)\n", p->colors[i].R, p->colors[i].G, p->colors[i].B);
             }
         }
-        if (DEBUG_ARG != NULL)
+        if (ARGS.DEBUG != 0)
             log_c("\n");
 }
 
@@ -1438,7 +1469,7 @@ PALETTE gen_palette(IMG *img)
         RGB bin_color = bin_to_color(top_bins[i].r_bin, top_bins[i].g_bin, top_bins[i].b_bin);
         RGB blended_colors = blend_colors(avg_color, bin_color, 0.5f);
 
-        if (DEBUG_ARG != NULL)
+        if (ARGS.DEBUG != 0)
         {
             printf("(%d, %d, %d)", avg_color.R, avg_color.G, avg_color.B);
             printf(" - ");
@@ -1486,7 +1517,7 @@ PALETTE gen_palette(IMG *img)
         palette.colors[num_colors++] = new_color;
     }
 
-    if (DEBUG_ARG != NULL)
+    if (ARGS.DEBUG != 0)
         log_c("\n---\n");
 
     return palette;
@@ -1495,7 +1526,7 @@ PALETTE gen_palette(IMG *img)
 /* Writes palete to stdout */
 void print_palette(PALETTE pal)
 {
-    if (QUIET_ARG != NULL)
+    if (ARGS.QUIET != 0)
         return;
 
     for (size_t i=0; i<PALETTE_SIZE; i++)
@@ -1548,23 +1579,23 @@ void print_palette_gray_scale_iter(IMG *img, size_t iter)
 
     for (size_t i = 0; i < iter; i++)
     {
-        GRAY_SCALE_ARG = (float)i == 0 ? 0 : (float)((float)i/iter);
+        ARGS.GRAY_SCALE = (float)i == 0 ? 0 : (float)((float)i/iter);
 
         sort_palette_by_luminance(&pal);
 
-        printf("GRAYSCALE VALUE: %f\n", GRAY_SCALE_ARG);
+        printf("GRAYSCALE VALUE: %f\n", ARGS.GRAY_SCALE);
         print_palette(pal);
     }
 
-    GRAY_SCALE_ARG = -1.f;
+    ARGS.GRAY_SCALE = -1.f;
 }
 
 /* Load image file using stb, return IMG structure */
 IMG *img_load(char *filename)
 {
-    if (IMAGE_ARG == NULL)
+    if (ARGS.IMAGE == NULL)
         err("No image provided");
-    log_c("Loading image %s", IMAGE_ARG);
+    log_c("Loading image %s", ARGS.IMAGE);
 
     int width, height;
     int numberOfChannels;
@@ -1609,7 +1640,7 @@ void img_free(IMG *img)
 void set_term_colors(PALETTE pal)
 {
     size_t succ = 0;
-    if (SKIP_TERM_COLORS == NULL)
+    if (ARGS.SKIP_TERM_COLORS == 0)
     {
         char buffer[1024];
         size_t offset = 0;
@@ -1672,7 +1703,7 @@ void set_term_colors(PALETTE pal)
 /* cache wallpaper color palette */
 void palette_write_cache(char *filepath, PALETTE *p)
 {
-    if (NO_CACHE_ARG != NULL || JSON_ARG != NULL)
+    if (ARGS.NO_CACHE != 0 || ARGS.JSON != 0)
         return;
 
     if (filepath == NULL)
@@ -1684,9 +1715,9 @@ void palette_write_cache(char *filepath, PALETTE *p)
     char *cache_file = (char*)malloc(cache_file_len);
     snprintf(cache_file, cache_file_len, "%s.hellwal", filename);
 
-    size_t cache_dir_len = strlen(OUTPUT_ARG) + strlen("/cache/") + 1;
+    size_t cache_dir_len = strlen(ARGS.OUTPUT) + strlen("/cache/") + 1;
     char *cache_dir = (char*)malloc(cache_dir_len);
-    snprintf(cache_dir, cache_dir_len, "%s/cache/", OUTPUT_ARG);
+    snprintf(cache_dir, cache_dir_len, "%s/cache/", ARGS.OUTPUT);
 
     char *full_cache_path = (char*)malloc(strlen(cache_dir) + strlen(cache_file) + 1);
     snprintf(full_cache_path, strlen(cache_dir) + strlen(cache_file) + 1, "%s%s", cache_dir, cache_file);
@@ -1711,7 +1742,7 @@ void palette_write_cache(char *filepath, PALETTE *p)
 /* if wallpaper was previously computed, if so, just load it */
 int check_cached_palette(char *filepath, PALETTE *p)
 {
-    if (NO_CACHE_ARG != NULL)
+    if (ARGS.NO_CACHE != 0)
         return 0;
 
     if (filepath == NULL)
@@ -1723,9 +1754,9 @@ int check_cached_palette(char *filepath, PALETTE *p)
     char *cache_file = (char*)malloc(cache_file_len);
     snprintf(cache_file, cache_file_len, "%s.hellwal", filename);
 
-    size_t cache_dir_len = strlen(OUTPUT_ARG) + strlen("/cache/") + 1;
+    size_t cache_dir_len = strlen(ARGS.OUTPUT) + strlen("/cache/") + 1;
     char *cache_dir = (char*)malloc(cache_dir_len);
-    snprintf(cache_dir, cache_dir_len, "%s/cache/", OUTPUT_ARG);
+    snprintf(cache_dir, cache_dir_len, "%s/cache/", ARGS.OUTPUT);
 
     char *full_cache_path = (char*)malloc(strlen(cache_dir) + strlen(cache_file) + 1);
     snprintf(full_cache_path, strlen(cache_dir) + strlen(cache_file) + 1, "%s%s", cache_dir, cache_file);
@@ -1854,7 +1885,7 @@ char *load_file(char *filename)
  */
 void process_templating(PALETTE pal)
 {
-    if (JSON_ARG != NULL)
+    if (ARGS.JSON != 0)
     {
         TEMPLATE t;
         t.content = JSON_TEMPLATE;
@@ -1868,21 +1899,21 @@ void process_templating(PALETTE pal)
         return;
     }
 
-    if (DEBUG_ARG != NULL)
+    if (ARGS.DEBUG != 0)
         log_c("Processing templates: ");
 
     TEMPLATE **templates;
     size_t templates_count, t_success = 0;
 
     /* Process templates loaded from folder */
-    templates = get_template_structure_dir(TEMPLATE_FOLDER_ARG, &templates_count);
+    templates = get_template_structure_dir(ARGS.TEMPLATE_FOLDER, &templates_count);
     if (templates == NULL) return;
 
-    check_output_dir(OUTPUT_ARG);
+    check_output_dir(ARGS.OUTPUT);
     for (size_t i = 0; i < templates_count; i++)
     {
         process_template(templates[i], pal);
-        t_success += template_write(templates[i], OUTPUT_ARG);
+        t_success += template_write(templates[i], ARGS.OUTPUT);
     }
 
     log_c("Processed [%d/%d] templates!", t_success, templates_count);
@@ -1910,7 +1941,7 @@ void process_template(TEMPLATE *t, PALETTE pal)
         return;
     }
 
-    if (DEBUG_ARG != NULL)
+    if (ARGS.DEBUG != 0)
         log_c("  - generating template buffer: %s", t->name);
 
     char *template_buffer = calloc(1, 1);
@@ -2058,7 +2089,7 @@ void process_template(TEMPLATE *t, PALETTE pal)
                             strncpy(left, pdt->input, l_size);
                             strncpy(right, pdt->input + pdt->pos, r_size);
 
-                            if (DEBUG_ARG != NULL)
+                            if (ARGS.DEBUG != 0)
                                 log_c("\nLEFT: %s\nRIGHT: %s\n", left, right);
 
                             L_TOKEN = left;
@@ -2072,7 +2103,7 @@ void process_template(TEMPLATE *t, PALETTE pal)
                                 L_TOKEN = delim_buf;
                             }
                             
-                            if (DEBUG_ARG != NULL)
+                            if (ARGS.DEBUG != 0)
                             {
                                 log_c("--------------------------------------------------");
                                 log_c("L_TOKEN: %s", L_TOKEN);
@@ -2129,13 +2160,13 @@ void process_template(TEMPLATE *t, PALETTE pal)
                         /* check if an argument stands for wallpaper path */
                         else if (!strcmp(delim_buf, "wallpaper"))
                         {
-                            if (IMAGE_ARG != NULL)
+                            if (ARGS.IMAGE != NULL)
                             {
-                                len = strlen(IMAGE_ARG);
-                                var_arg = IMAGE_ARG;
+                                len = strlen(ARGS.IMAGE);
+                                var_arg = ARGS.IMAGE;
                             }
-                            else if (THEME_ARG)
-                                var_arg = THEME_ARG;
+                            else if (ARGS.THEME)
+                                var_arg = ARGS.THEME;
                             else
                                 var_arg = "";
                         }
@@ -2288,7 +2319,7 @@ size_t template_write(TEMPLATE *t, char *dir)
 
     fprintf(f, "%s", t->content);
     
-    if (DEBUG_ARG != NULL)
+    if (ARGS.DEBUG != 0)
         log_c("  - wrote template to: %s\n", path);
 
     fclose(f);
@@ -2302,20 +2333,20 @@ size_t template_write(TEMPLATE *t, char *dir)
  * if not exist, try to open it as a path */
 char *load_theme(char *themename)
 {
-    log_c("Loading static theme: %s", THEME_ARG);
-    DIR *dir = opendir(THEME_FOLDER_ARG);
+    log_c("Loading static theme: %s", ARGS.THEME);
+    DIR *dir = opendir(ARGS.THEME_FOLDER);
     char *t = NULL;
     struct dirent *entry;
 
     if (dir == NULL)
-        warn("Cannot access directory: %s", THEME_FOLDER_ARG);
+        warn("Cannot access directory: %s", ARGS.THEME_FOLDER);
     else
     {
         while ((entry = readdir(dir)) != NULL)
         {
             if (entry->d_type == DT_REG && strcmp(entry->d_name, themename) == 0)
             {
-                size_t path_len = strlen(THEME_FOLDER_ARG) + strlen(entry->d_name) + 2; // +2 for '/' and '\0'
+                size_t path_len = strlen(ARGS.THEME_FOLDER) + strlen(entry->d_name) + 2; // +2 for '/' and '\0'
                 char *path = malloc(path_len);
                 if (path == NULL) {
                     perror("Failed to allocate memory for file path");
@@ -2323,7 +2354,7 @@ char *load_theme(char *themename)
                     return NULL;
                 }
 
-                sprintf(path, "%s/%s", THEME_FOLDER_ARG, entry->d_name); 
+                sprintf(path, "%s/%s", ARGS.THEME_FOLDER, entry->d_name); 
                 t = load_file(path);
                 
                 if (t != NULL)
@@ -2483,7 +2514,7 @@ int main(int argc, char **argv)
     process_templating(pal);
 
     /* Run script or command from --script argument */
-    run_script(SCRIPT_ARG);
+    run_script(ARGS.SCRIPT);
 
     return 0;
 }

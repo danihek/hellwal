@@ -201,7 +201,7 @@ struct {
     char *IMAGE;
 
     /*
-     * quiet arg, if NULL you will get verbose output,
+     * quiet arg, if 0 you will get verbose output,
      * otherwise its going to print everthing normally 
      */
     uint8_t QUIET : 1;
@@ -284,7 +284,7 @@ struct {
     .QUIET = 0,
     .SKIP_TERM_COLORS = 0,
     .SKIP_LUMINANCE_SORTING = 0,
-    .DARK_MODE = 1,  // Defaulting to dark mode
+    .DARK_MODE = 0,
     .LIGHT_MODE = 0,
     .COLOR_MODE = 0,
     .TEMPLATE_FOLDER = NULL,
@@ -522,7 +522,6 @@ int set_args(int argc, char *argv[])
         }
         else if ((strcmp(argv[i], "--dark") == 0 || strcmp(argv[i], "-d") == 0))
         {
-            /* anything other than NULL, makes dark mode */
             ARGS.DARK_MODE = 1;
         }
         else if ((strcmp(argv[i], "--light") == 0 || strcmp(argv[i], "-l") == 0))

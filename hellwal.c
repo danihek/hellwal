@@ -1,7 +1,15 @@
 /*  hellwal - MIT LICENSE
  *
- * changelog v1.0.4:
+ * changelog v1.0.5:
+ *  - New and proper relative luminance calculations thanks to @mimvoid https://github.com/danihek/hellwal/pull/39
+ *  - New template options (single color channel r/g/b) thanks to @mimvoid https://github.com/danihek/hellwal/pull/40
+ *  - New `--check-contrast` flag thanks to @mimvoid https://github.com/danihek/hellwal/pull/37
+ *  - New templates for gtk, Qt, kitty and micro thanks to @SakibShahariar https://github.com/danihek/hellwal/pull/28
+ *  - New template for hellpaper
+ *  - Fixed/better typos and README Grammar thanks to @mimvoid
+ *  - Fixed handling for single delim characters thanks to @Alextibtab https://github.com/danihek/hellwal/pull/31
  *  - Addition to Homebrew thanks to @vaygr https://github.com/Homebrew/homebrew-core/pull/222859
+ *  - Changed arguments to be stored in a bitfield, idea by @mimvoid, implemented by @danihek
  *
  * changelog v1.0.4:
  *  - added --version flag

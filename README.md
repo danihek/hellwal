@@ -279,7 +279,7 @@ Then add this to your fish config:
 
 ```sh
 source ~/.cache/hellwal/variablesfish.fish
-fish ~/.cache/hellwal/terminal.sh
+sh ~/.cache/hellwal/terminal.sh
 ```
 
 # Showcase

@@ -263,6 +263,8 @@ add these templates to your `~/.config/hellwal/templates/` folder:
 - [variables.sh](./templates/variables.sh)
 - [terminal.sh](./templates/terminal.sh)
 
+Run hellwal with an image or theme to generate the output scripts from the templates.
+
 Then in `.bashrc`, add following lines:
 
 ```sh
@@ -279,7 +281,7 @@ Then add this to your fish config:
 
 ```sh
 source ~/.cache/hellwal/variablesfish.fish
-fish ~/.cache/hellwal/terminal.sh
+sh ~/.cache/hellwal/terminal.sh
 ```
 
 # Showcase

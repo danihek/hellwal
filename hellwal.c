@@ -1298,13 +1298,15 @@ PALETTE get_color_palette(PALETTE p)
 
 void apply_addtional_arguments(PALETTE *p)
 {
-    sort_palette_by_luminance(p);
-    for (int i = PALETTE_SIZE / 2; i < PALETTE_SIZE; i++)
-        p->colors[i] = lighten_color(p->colors[i - PALETTE_SIZE / 2], 0.25f);
+    if (!ARGS.THEME)
+    {
+        sort_palette_by_luminance(p);
+        for (int i = PALETTE_SIZE / 2; i < PALETTE_SIZE; i++)
+            p->colors[i] = lighten_color(p->colors[i - PALETTE_SIZE / 2], 0.25f);
+    }
 
     /* Handle dark/light or color mode */
-    if (ARGS.THEME == NULL &&
-            (ARGS.LIGHT_MODE == 0 && ARGS.COLOR_MODE == 0 && ARGS.DARK_MODE == 0))
+    if (!ARGS.THEME && (ARGS.LIGHT_MODE == 0 && ARGS.COLOR_MODE == 0 && ARGS.DARK_MODE == 0))
         ARGS.DARK_MODE = 1;
     
     if (ARGS.NEON_MODE != 0)

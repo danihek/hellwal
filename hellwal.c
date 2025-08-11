@@ -106,6 +106,7 @@
 #include <glob.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <errno.h>
 #include <libgen.h>
 #include <dirent.h>
 #include <stdint.h>

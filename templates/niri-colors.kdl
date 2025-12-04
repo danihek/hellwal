@@ -1,0 +1,28 @@
+layout {
+
+    focus-ring {
+        active-color   "%%color4.hex%%"
+        inactive-color "%%background.hex%%"
+        urgent-color   "%%color1.hex%%"
+    }
+
+    border {
+        active-color   "%%color4.hex%%"
+        inactive-color "%%background.hex%%"
+        urgent-color   "%%color1.hex%%"
+    }
+
+    shadow {
+        color "%%color0.hex%%70"
+    }
+
+    tab-indicator {
+        active-color   "%%color4.hex%%"
+        inactive-color "%%color12.hex%%"
+        urgent-color   "%%color1.hex%%"
+    }
+
+    insert-hint {
+        color "%%color4.hex%%80"
+    }
+}

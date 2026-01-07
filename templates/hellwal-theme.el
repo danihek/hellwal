@@ -1,4 +1,6 @@
 ;;; hellwal-theme.el --- Theme using Hellwal variables
+;;; Commentary:
+;;; Code:
 
 (deftheme hellwal "Theme using Hellwal variables.")
 
@@ -133,3 +135,5 @@
   (setq org-startup-indented t))
 
 (provide-theme 'hellwal)
+
+;;; hellwal-theme.el ends here

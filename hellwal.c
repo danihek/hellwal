@@ -106,6 +106,7 @@
 #include <glob.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <errno.h>
 #include <libgen.h>
 #include <dirent.h>
 #include <stdint.h>
@@ -381,6 +382,7 @@ int set_args(int argc, char *argv[]);
 
 /* utils */
 float clamp_float(float value, float min, float max);
+int mkdir_p(const char *path, mode_t mode);
 
 int is_between_01_float(const char *str);
 int _compare_luminance_qsort(const void *a, const void *b);
@@ -747,6 +749,11 @@ int set_args(int argc, char *argv[])
     SET_DEF(ARGS.THEME_FOLDER , "~/.config/hellwal/themes");
     SET_DEF(ARGS.TEMPLATE_FOLDER, "~/.config/hellwal/templates");
 
+    /* Create default directories if they don't exist */
+    check_output_dir(ARGS.OUTPUT);
+    check_output_dir(ARGS.THEME_FOLDER);
+    check_output_dir(ARGS.TEMPLATE_FOLDER);
+
     return 0;
 }
 
@@ -908,7 +915,11 @@ void check_output_dir(char *path)
 {
     struct stat st;
     if (stat(path, &st) == -1)
-        mkdir(path, 0700);
+        if (mkdir_p(path, 0700) == -1)
+        {
+            fprintf(stderr, "mkdir failed for path: %s\n", path);
+            perror("mkdir");
+        };
 }
 
 /* run script from given path */
@@ -930,6 +941,42 @@ void run_script(const char *script)
 float clamp_float(float value, float min, float max)
 {
     return value < min ? min : (value > max ? max : value);
+}
+
+/*make directories recursively*/
+int mkdir_p(const char *path, mode_t mode)
+{
+    char temp_path[PATH_MAX];
+    int home_len = strlen(getenv("HOME"));
+    char *p = NULL;
+    size_t len;
+
+    snprintf(temp_path, sizeof(temp_path), "%s", path);
+    len = strlen(temp_path);
+    if (len > 0 && temp_path[len - 1] == '/')
+        temp_path[len - 1] = '\0';
+
+    for (p = temp_path + home_len + 1; *p; p++)
+    {
+        if (*p == '/')
+        {
+            *p = '\0';
+            if (mkdir(temp_path, mode) != 0 && errno != EEXIST)
+            {
+                fprintf(stderr, "mkdir_p failed for path: %s\n", temp_path);
+                return -1;
+            }
+            *p = '/';
+        }
+    }
+
+    if (mkdir(temp_path, mode) != 0 && errno != EEXIST)
+    {
+        fprintf(stderr, "mkdir_p failed at end: %s\n", temp_path);
+        return -1;
+    }
+
+    return 0;
 }
 
 /* get random file from given path */

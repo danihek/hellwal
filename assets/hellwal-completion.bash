@@ -8,9 +8,21 @@ _hellwal_complete() {
     
     opts="-i --image -d --dark -l --light -c --color -v --invert -m --neon-mode -r --random -q --quiet -j --json \
           -s --script -f --template-folder -o --output -t --theme -k --theme-folder -g --gray-scale -n --dark-offset \
-          -b --bright-offset --debug --no-cache --static-background --dominant-background --static-foreground -h --help"
+          -b --bright-offset --debug --no-cache --static-background --dominant-background --static-foreground --override-colors -h --help"
 
     case "$prev" in
+        --override-colors)
+            local prefix="" selector="$cur"
+            if [[ "$cur" == *,* ]]; then
+                prefix="${cur%,*},"
+                selector="${cur##*,}"
+            fi
+            local choice
+            while IFS= read -r choice; do
+                COMPREPLY+=("$prefix$choice")
+            done < <(compgen -W "color0 color1 color2 color3 color4 color5 color6 color7 color8 color9 color10 color11 color12 color13 color14 color15 background foreground cursor border" -- "$selector")
+            return 0
+            ;;
         -i|--image)
             COMPREPLY=( $(compgen -f -- "$cur") ) # Complete file names
             return 0

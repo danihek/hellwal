@@ -208,6 +208,35 @@ For example:
 hellwal -t gruvbox.hellwal --theme-folder ~/dotfiles/configs/hellwal/themes
 ```
 
+### Replace selected theme colors with image colors
+
+```sh
+hellwal -i wallpaper.jpg -t gruvbox.hellwal --override-colors color1,color2,background
+```
+
+This copies matching image-palette slots into the theme: image color1 replaces
+theme color1, and so on. Select `color0`–`color15`, `background` (color0), or
+`foreground`, `cursor`, and `border` (all color15). Separate names with commas;
+duplicates are harmless, and repeated `--override-colors` options combine their
+selections. Empty or unknown selectors are errors.
+
+Image colors are sorted and their bright variants prepared before copying.
+Without adjustment flags, unselected theme colors stay unchanged and mixed mode
+does **not** automatically darken the palette. Explicit modes, inversion, offsets,
+grayscale, static foreground/background, and contrast checks apply to the **whole
+merged palette afterward**, so they can also change unselected colors. For example:
+
+```sh
+hellwal -i wallpaper.jpg -t gruvbox.hellwal --override-colors color1,color2 --light
+```
+
+Both `--image` and `--theme` are required. Theme paths, named themes, and
+`--theme-folder` work as usual. With `--random`, only the image is chosen randomly;
+the specified theme stays fixed. `wallpaper` in templates/JSON refers to the image.
+The source theme is never rewritten, and only the raw image palette is cached.
+Combining image and theme without `--override-colors` remains an error, and
+`--dominant-background` still cannot be combined with themes.
+
 ## NEON Mode
 
 Neon mode boosts colors to make them look more vibrant and bold. Sometimes it's a pain in the EYE,

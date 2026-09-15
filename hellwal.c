@@ -248,6 +248,7 @@ struct {
     /* name of theme in ARGS.THEME_FOLDER,
      * or (in case was not found) path to file */
     char *THEME;
+    uint16_t OVERRIDE_COLORS;
 
     /* folder that contains static themes */
     char *THEME_FOLDER;
@@ -488,6 +489,7 @@ void hellwal_usage(const char *name)
     printf("  -f, --template-folder    <dir>     Set folder containing templates\n");
     printf("  -o, --output             <dir>     Set output folder for generated templates\n");
     printf("  -t, --theme              <file>    Set theme file or name\n");
+    printf("  --override-colors        <list>    Replace selected theme slots with image colors\n");
     printf("  -k, --theme-folder       <dir>     Set folder containing themes\n");
     printf("  -g, --gray-scale         <value>   Apply grayscale filter   (0-1) (float)\n");
     printf("  -n, --dark-offset        <value>   Adjust darkness offset   (0-1) (float)\n");
@@ -508,6 +510,44 @@ void hellwal_usage(const char *name)
     printf("  Template folder: ~/.config/hellwal/templates\n");
     printf("  Theme folder: ~/.config/hellwal/themes\n");
     printf("  Output folder: ~/.cache/hellwal/\n\n");
+}
+
+/* Parse an explicit list so image/theme combinations cannot silently replace colors. */
+static uint16_t parse_override_colors(const char *list)
+{
+    uint16_t mask = 0;
+    const char *start = list;
+    for (;;)
+    {
+        const char *end = strchr(start, ',');
+        const char *next = end ? end + 1 : NULL;
+        if (!end) end = start + strlen(start);
+        while (start < end && strchr(" \t\r\n", *start)) start++;
+        while (end > start && strchr(" \t\r\n", end[-1])) end--;
+        size_t len = (size_t)(end - start);
+        char name[32];
+        if (len == 0 || len >= sizeof(name))
+            err("Invalid --override-colors list: %s", list);
+        memcpy(name, start, len);
+        name[len] = '\0';
+        int index = -1;
+        if (!strcmp(name, "background")) index = 0;
+        else if (!strcmp(name, "foreground") || !strcmp(name, "cursor") || !strcmp(name, "border"))
+            index = PALETTE_SIZE - 1;
+        else
+        {
+            for (int i = 0; i < PALETTE_SIZE; i++)
+            {
+                char candidate[32];
+                snprintf(candidate, sizeof(candidate), "color%d", i);
+                if (!strcmp(name, candidate)) { index = i; break; }
+            }
+        }
+        if (index == -1) err("Invalid --override-colors selector: %s", name);
+        mask |= (uint16_t)(1u << index);
+        if (!next) return mask;
+        start = next;
+    }
 }
 
 /* set given arguments */
@@ -675,6 +715,13 @@ int set_args(int argc, char *argv[])
             else
                 argc = -1;
         }
+        else if (strcmp(argv[i], "--override-colors") == 0)
+        {
+            if (i + 1 < argc)
+                ARGS.OVERRIDE_COLORS |= parse_override_colors(argv[++i]);
+            else
+                argc = -1;
+        }
         else if (strcmp(argv[i], "--dominant-background") == 0)
         {
             ARGS.DOMINANT_BACKGROUND = 1;
@@ -726,7 +773,10 @@ int set_args(int argc, char *argv[])
     if (ARGS.IMAGE == NULL && ARGS.THEME == NULL && ((ARGS.THEME_FOLDER == NULL || ARGS.TEMPLATE_FOLDER == NULL) && ARGS.RANDOM == 0))
         err("You have to provide image file or theme!:  --image,  --theme, \n\t");
 
-    if ((ARGS.THEME != NULL || ARGS.THEME_FOLDER != NULL) && ARGS.IMAGE != NULL)
+    if (ARGS.OVERRIDE_COLORS && (ARGS.IMAGE == NULL || ARGS.THEME == NULL))
+        err("--override-colors requires both --image and --theme");
+
+    if (!ARGS.OVERRIDE_COLORS && (ARGS.THEME != NULL || ARGS.THEME_FOLDER != NULL) && ARGS.IMAGE != NULL)
     {
         if (ARGS.THEME_FOLDER != NULL)
             err("you cannot use both --image and --theme-folder");
@@ -734,7 +784,7 @@ int set_args(int argc, char *argv[])
             err("you cannot use both --image and --theme");
     }
 
-    if (ARGS.RANDOM != 0 && ARGS.THEME != NULL)
+    if (ARGS.RANDOM != 0 && ARGS.THEME != NULL && !ARGS.OVERRIDE_COLORS)
         warn("specified theme is not used: \"%s\"", ARGS.THEME);
 
     if (ARGS.THEME == NULL && ARGS.THEME_FOLDER != NULL && ARGS.RANDOM == 0)
@@ -1340,40 +1390,55 @@ void check_palette_contrast(PALETTE *palette)
     }
 }
 
+/* Load only the raw image palette; merged theme colors never enter this cache. */
+static PALETTE load_image_palette(void)
+{
+    PALETTE p;
+    int cached = check_cached_palette(ARGS.IMAGE, &p);
+    int needs_background = ARGS.DOMINANT_BACKGROUND && ARGS.STATIC_BG == NULL;
+    if (!cached || needs_background) {
+        IMG *img = img_load(ARGS.IMAGE);
+        if (needs_background)
+            ARGS.DOMINANT_BACKGROUND_COLOR = dominant_background(img);
+        if (!cached)
+        {
+            p = gen_palette(img);
+            palette_write_cache(ARGS.IMAGE, &p);
+        }
+        img_free(img);
+    }
+    return p;
+}
+
+static void prepare_image_palette(PALETTE *p)
+{
+    sort_palette_by_luminance(p);
+    for (int i = PALETTE_SIZE / 2; i < PALETTE_SIZE; i++)
+        p->colors[i] = lighten_color(p->colors[i - PALETTE_SIZE / 2], 0.25f);
+}
+
 PALETTE get_color_palette(PALETTE p)
 {
     if (ARGS.THEME)
     {
-        p = process_themeing(ARGS.THEME); /* if true, program end's here */
-    }
-    else
-    {
-        int cached = check_cached_palette(ARGS.IMAGE, &p);
-        int needs_background = ARGS.DOMINANT_BACKGROUND && ARGS.STATIC_BG == NULL;
-        if (!cached || needs_background) {
-            IMG *img = img_load(ARGS.IMAGE);
-            if (needs_background)
-                ARGS.DOMINANT_BACKGROUND_COLOR = dominant_background(img);
-            if (!cached)
-            {
-                p = gen_palette(img);
-                palette_write_cache(ARGS.IMAGE, &p);
-            }
-            img_free(img);
+        p = process_themeing(ARGS.THEME);
+        if (ARGS.OVERRIDE_COLORS)
+        {
+            PALETTE image = load_image_palette();
+            prepare_image_palette(&image);
+            for (unsigned i = 0; i < PALETTE_SIZE; i++)
+                if (ARGS.OVERRIDE_COLORS & (1u << i)) p.colors[i] = image.colors[i];
         }
     }
-
+    else
+        p = load_image_palette();
     return p;
 }
 
 void apply_addtional_arguments(PALETTE *p)
 {
     if (!ARGS.THEME)
-    {
-        sort_palette_by_luminance(p);
-        for (int i = PALETTE_SIZE / 2; i < PALETTE_SIZE; i++)
-            p->colors[i] = lighten_color(p->colors[i - PALETTE_SIZE / 2], 0.25f);
-    }
+        prepare_image_palette(p);
 
     /* Handle dark/light or color mode */
     if (!ARGS.THEME && (ARGS.LIGHT_MODE == 0 && ARGS.COLOR_MODE == 0 && ARGS.DARK_MODE == 0))

@@ -231,6 +231,7 @@ struct {
 
     /* folder that contains templates */
     char *TEMPLATE_FOLDER;
+    uint8_t DEFAULT_TEMPLATE_FOLDER : 1;
 
     /* 
      * output folder for generated templates,
@@ -389,7 +390,8 @@ int _compare_luminance_qsort(const void *a, const void *b);
 char *rand_file(char *path);
 char *home_full_path(const char* path);
 
-void check_output_dir(char *path);
+int check_output_dir(const char *path);
+char *join_path(const char *dir, const char *name);
 void remove_whitespaces(char *str);
 void run_script(const char *script);
 void hellwal_usage(const char *name);
@@ -746,6 +748,7 @@ int set_args(int argc, char *argv[])
     /* If not specified, set default ones */
     SET_DEF(ARGS.OUTPUT, "~/.cache/hellwal/");
     SET_DEF(ARGS.THEME_FOLDER , "~/.config/hellwal/themes");
+    ARGS.DEFAULT_TEMPLATE_FOLDER = ARGS.TEMPLATE_FOLDER == NULL;
     SET_DEF(ARGS.TEMPLATE_FOLDER, "~/.config/hellwal/templates");
 
     return 0;
@@ -901,15 +904,60 @@ char* home_full_path(const char* path)
     return strdup(path);
 }
 
-/* 
- * checks if output directory exists,
- * if not creates it
- */
-void check_output_dir(char *path)
+/* Join a directory and filename with one separator. */
+char *join_path(const char *dir, const char *name)
 {
-    struct stat st;
-    if (stat(path, &st) == -1)
-        mkdir(path, 0700);
+    size_t len = strlen(dir);
+    while (len > 0 && dir[len - 1] == '/') len--;
+    size_t separator = dir[0] != '\0';
+    char *path = malloc(len + separator + strlen(name) + 1);
+    if (path == NULL) err("Failed to allocate memory for path");
+    memcpy(path, dir, len);
+    if (separator) path[len++] = '/';
+    strcpy(path + len, name);
+    return path;
+}
+
+/* Create missing parents without changing existing directory permissions. */
+int check_output_dir(const char *path)
+{
+    if (path == NULL || path[0] == '\0')
+    {
+        warn("Cannot create directory: empty path");
+        return 0;
+    }
+    char *copy = strdup(path);
+    if (copy == NULL) err("Failed to allocate memory for directory path");
+    for (char *p = copy + 1; ; p++)
+    {
+        if (*p != '/' && *p != '\0') continue;
+        char saved = *p;
+        *p = '\0';
+        struct stat st;
+        int error = 0;
+        if (stat(copy, &st) == 0)
+        {
+            if (!S_ISDIR(st.st_mode)) error = ENOTDIR;
+        }
+        else if (errno != ENOENT)
+            error = errno;
+        else if (mkdir(copy, 0700) == -1)
+        {
+            error = errno;
+            if (error == EEXIST && stat(copy, &st) == 0 && S_ISDIR(st.st_mode))
+                error = 0;
+        }
+        if (error)
+        {
+            warn("Cannot create directory: %s: %s", copy, strerror(error));
+            free(copy);
+            return 0;
+        }
+        *p = saved;
+        if (saved == '\0') break;
+    }
+    free(copy);
+    return 1;
 }
 
 /* run script from given path */
@@ -1725,15 +1773,16 @@ void palette_write_cache(char *filepath, PALETTE *p)
     char *cache_file = (char*)malloc(cache_file_len);
     snprintf(cache_file, cache_file_len, "%s.hellwal", filename);
 
-    size_t cache_dir_len = strlen(ARGS.OUTPUT) + strlen("/cache/") + 1;
-    char *cache_dir = (char*)malloc(cache_dir_len);
-    snprintf(cache_dir, cache_dir_len, "%s/cache/", ARGS.OUTPUT);
+    char *cache_dir = join_path(ARGS.OUTPUT, "cache");
+    char *full_cache_path = join_path(cache_dir, cache_file);
 
-    char *full_cache_path = (char*)malloc(strlen(cache_dir) + strlen(cache_file) + 1);
-    snprintf(full_cache_path, strlen(cache_dir) + strlen(cache_file) + 1, "%s%s", cache_dir, cache_file);
-
-    /* create dir if not exits */
-    check_output_dir(cache_dir);
+    if (!check_output_dir(cache_dir))
+    {
+        free(cache_file);
+        free(cache_dir);
+        free(full_cache_path);
+        return;
+    }
 
     /* create and process template */
     TEMPLATE t;
@@ -1764,22 +1813,16 @@ int check_cached_palette(char *filepath, PALETTE *p)
     char *cache_file = (char*)malloc(cache_file_len);
     snprintf(cache_file, cache_file_len, "%s.hellwal", filename);
 
-    size_t cache_dir_len = strlen(ARGS.OUTPUT) + strlen("/cache/") + 1;
-    char *cache_dir = (char*)malloc(cache_dir_len);
-    snprintf(cache_dir, cache_dir_len, "%s/cache/", ARGS.OUTPUT);
-
-    char *full_cache_path = (char*)malloc(strlen(cache_dir) + strlen(cache_file) + 1);
-    snprintf(full_cache_path, strlen(cache_dir) + strlen(cache_file) + 1, "%s%s", cache_dir, cache_file);
-
-    /* create dir if not exits */
-    check_output_dir(cache_dir);
+    char *cache_dir = join_path(ARGS.OUTPUT, "cache");
+    char *full_cache_path = join_path(cache_dir, cache_file);
 
     char *theme = load_file(full_cache_path);
 
     int result = 1;
     if (theme == NULL)
     {
-        warn("Failed to open file: %s", full_cache_path);
+        if (errno != ENOENT)
+            warn("Failed to open file: %s: %s", full_cache_path, strerror(errno));
         result = 0;
     }
     else
@@ -1915,11 +1958,14 @@ void process_templating(PALETTE pal)
     TEMPLATE **templates;
     size_t templates_count, t_success = 0;
 
+    if (ARGS.DEFAULT_TEMPLATE_FOLDER && !check_output_dir(ARGS.TEMPLATE_FOLDER))
+        return;
+    if (!check_output_dir(ARGS.OUTPUT)) return;
+
     /* Process templates loaded from folder */
     templates = get_template_structure_dir(ARGS.TEMPLATE_FOLDER, &templates_count);
     if (templates == NULL) return;
 
-    check_output_dir(ARGS.OUTPUT);
     for (size_t i = 0; i < templates_count; i++)
     {
         process_template(templates[i], pal);
@@ -2324,16 +2370,12 @@ size_t template_write(TEMPLATE *t, char *dir)
     if (t == NULL || dir == NULL) return 0;
     if (t->content == NULL) return 0;
 
-    char* path = malloc(strlen(dir) + strlen(t->name) + 1);
-    if (path)
-        sprintf(path, "%s%s", dir, t->name);
-    else
-        return 0;
+    char *path = join_path(dir, t->name);
 
     FILE *f = fopen(path, "w");
     if (f == NULL)
     {
-        warn("Cannot write to file: %s", path);
+        warn("Cannot write to file: %s: %s", path, strerror(errno));
         free(path);
         return 0;
     }

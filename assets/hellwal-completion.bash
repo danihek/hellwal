@@ -8,7 +8,7 @@ _hellwal_complete() {
     
     opts="-i --image -d --dark -l --light -c --color -v --invert -m --neon-mode -r --random -q --quiet -j --json \
           -s --script -f --template-folder -o --output -t --theme -k --theme-folder -g --gray-scale -n --dark-offset \
-          -b --bright-offset --debug --no-cache --static-background --static-foreground -h --help"
+          -b --bright-offset --debug --no-cache --static-background --dominant-background --static-foreground -h --help"
 
     case "$prev" in
         -i|--image)

@@ -276,6 +276,10 @@ struct {
     /* Set Static Background colors */
     RGB *STATIC_BG;
 
+    /* Opt-in wallpaper-derived background, computed before palette adjustments. */
+    uint8_t DOMINANT_BACKGROUND : 1;
+    RGB DOMINANT_BACKGROUND_COLOR;
+
     /* Set Static Foreground colors */
     RGB *STATIC_FG;
 
@@ -405,6 +409,7 @@ void log_c(const char *format, ...);
 
 /* IMG */
 IMG *img_load(char *filename);
+static RGB dominant_background(const IMG *img);
 void img_free(IMG *img);
 
 /* color related stuff */
@@ -496,6 +501,7 @@ void hellwal_usage(const char *name)
     printf("  --skip-term-colors                 Skip setting colors to the terminal\n");
     printf("  --skip-luminance-sort              Skip sorting colors before applying\n");
     printf("  --static-background \"#hex\"         Set static background color\n");
+    printf("  --dominant-background              Use wallpaper's dominant color for dark-mode background\n");
     printf("  --static-foreground \"#hex\"         Set static foreground color\n");
     printf("  -h, --help                         Display this help and exit\n\n");
     printf("Defaults:\n");
@@ -669,6 +675,10 @@ int set_args(int argc, char *argv[])
             else
                 argc = -1;
         }
+        else if (strcmp(argv[i], "--dominant-background") == 0)
+        {
+            ARGS.DOMINANT_BACKGROUND = 1;
+        }
         else if (strcmp(argv[i], "--static-background") == 0)
         {
             if (i + 1 < argc)
@@ -738,6 +748,10 @@ int set_args(int argc, char *argv[])
         else
             ARGS.THEME = rand_file(ARGS.THEME_FOLDER);
     }
+
+    if (ARGS.DOMINANT_BACKGROUND &&
+        (ARGS.IMAGE == NULL || ARGS.THEME != NULL || ARGS.LIGHT_MODE || ARGS.COLOR_MODE))
+        err("--dominant-background requires an image in dark/default mode; it cannot be used with themes, --light or --color");
 
     /* set offset values - you can provide both, but they will interfier with each other */
     if (ARGS.DARKNESS_OFFSET != -1)
@@ -1334,10 +1348,17 @@ PALETTE get_color_palette(PALETTE p)
     }
     else
     {
-        if (!check_cached_palette(ARGS.IMAGE, &p)) {
+        int cached = check_cached_palette(ARGS.IMAGE, &p);
+        int needs_background = ARGS.DOMINANT_BACKGROUND && ARGS.STATIC_BG == NULL;
+        if (!cached || needs_background) {
             IMG *img = img_load(ARGS.IMAGE);
-            p = gen_palette(img);
-            palette_write_cache(ARGS.IMAGE, &p);
+            if (needs_background)
+                ARGS.DOMINANT_BACKGROUND_COLOR = dominant_background(img);
+            if (!cached)
+            {
+                p = gen_palette(img);
+                palette_write_cache(ARGS.IMAGE, &p);
+            }
             img_free(img);
         }
     }
@@ -1366,6 +1387,9 @@ void apply_addtional_arguments(PALETTE *p)
         palette_handle_light_mode(p);
     if (ARGS.COLOR_MODE != 0)
         palette_handle_color_mode(p);
+
+    if (ARGS.DOMINANT_BACKGROUND && ARGS.STATIC_BG == NULL)
+        p->colors[0] = ARGS.DOMINANT_BACKGROUND_COLOR;
 
     /* invert palette, if ARGS.INVERT */
     if (ARGS.INVERT != 0)
@@ -2058,6 +2082,42 @@ static void template_hsl_channels(TEMPLATE_HSL color, double channels[3])
     channels[0] = fmin(1, fmax(0, r + m));
     channels[1] = fmin(1, fmax(0, g + m));
     channels[2] = fmin(1, fmax(0, b + m));
+}
+
+/* Average the most populated RGB bin, preserving its hue at reduced lightness. */
+static RGB dominant_background(const IMG *img)
+{
+    size_t counts[BINS * BINS * BINS] = {0};
+    for (size_t i = 0; i + 2 < img->size; i += 3)
+    {
+        unsigned r = img->pixels[i] / (256 / BINS);
+        unsigned g = img->pixels[i + 1] / (256 / BINS);
+        unsigned b = img->pixels[i + 2] / (256 / BINS);
+        counts[(r * BINS + g) * BINS + b]++;
+    }
+    size_t winner = 0;
+    for (size_t i = 1; i < BINS * BINS * BINS; i++)
+        if (counts[i] > counts[winner]) winner = i;
+
+    if (counts[winner] == 0) return (RGB){0, 0, 0};
+    double sums[3] = {0};
+    for (size_t i = 0; i + 2 < img->size; i += 3)
+    {
+        unsigned r = img->pixels[i] / (256 / BINS);
+        unsigned g = img->pixels[i + 1] / (256 / BINS);
+        unsigned b = img->pixels[i + 2] / (256 / BINS);
+        if ((r * BINS + g) * BINS + b == winner)
+            for (int c = 0; c < 3; c++) sums[c] += img->pixels[i + c];
+    }
+    double divisor = (double)counts[winner] * 255;
+    TEMPLATE_HSL color = template_channels_to_hsl(sums[0] / divisor, sums[1] / divisor, sums[2] / divisor);
+    color.l *= 0.35;
+    color.s = fmin(color.s, 0.45);
+    double channels[3];
+    template_hsl_channels(color, channels);
+    return (RGB){(uint8_t)lround(channels[0] * 255),
+                 (uint8_t)lround(channels[1] * 255),
+                 (uint8_t)lround(channels[2] * 255)};
 }
 
 static void template_skip_spaces(const char **p)

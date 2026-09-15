@@ -228,6 +228,15 @@ matter if it's generated from an image or from a theme file. There is also `--co
 hellwal -i [wallpaper] --dark
 ```
 
+#### Dominant background
+
+Use the wallpaper's most common color for the background instead of the
+darkest palette color:
+
+```sh
+hellwal -i [wallpaper] --dominant-background
+```
+
 ### Light mode
 
 ```sh

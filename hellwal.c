@@ -1679,6 +1679,42 @@ void img_free(IMG *img)
     free(img);
 }
 
+/* Use a separate descriptor so the shell's terminal flags stay unchanged. */
+static int write_term_colors(const char *path, const char *buffer, size_t size)
+{
+    int fd = open(path, O_WRONLY | O_NONBLOCK | O_NOCTTY);
+    if (fd == -1)
+    {
+        warn("Cannot update terminal: %s: %s", path, strerror(errno));
+        return 0;
+    }
+    if (!isatty(fd))
+    {
+        warn("Cannot update terminal: %s: not a terminal", path);
+        close(fd);
+        return 0;
+    }
+
+    size_t written = 0;
+    while (written < size)
+    {
+        ssize_t count = write(fd, buffer + written, size - written);
+        if (count > 0)
+            written += (size_t)count;
+        else if (count == -1 && errno == EINTR)
+            continue;
+        else
+        {
+            warn("Cannot update terminal: %s: %s", path,
+                 count == 0 ? "no write progress" : strerror(errno));
+            close(fd);
+            return 0;
+        }
+    }
+    close(fd);
+    return 1;
+}
+
 /* 
  * overides default terminal color variables from PALETTE
  * This works thanks to this (and chatgpt):
@@ -1729,17 +1765,11 @@ void set_term_colors(PALETTE pal)
 
         /* Broadcast the sequences to all terminal devices */
         glob_t globbuf;
-        if (glob("/dev/pts/*", GLOB_NOSORT, NULL, &globbuf) == 0)
+        if (glob("/dev/pts/[0-9]*", GLOB_NOSORT, NULL, &globbuf) == 0)
         {
             for (size_t i = 0; i < globbuf.gl_pathc; i++)
             {
-                FILE *f = fopen(globbuf.gl_pathv[i], "w");
-                if (f)
-                {
-                    fwrite(buffer, 1, offset, f);
-                    fclose(f);
-                    succ++;
-                }
+                succ += write_term_colors(globbuf.gl_pathv[i], buffer, offset);
             }
             globfree(&globbuf);
         }
@@ -1750,12 +1780,15 @@ void set_term_colors(PALETTE pal)
          */
         if (isatty(STDOUT_FILENO))
         {
-            fwrite(buffer, 1, offset, stdout);
-            succ++;
+            const char *path = ttyname(STDOUT_FILENO);
+            if (path != NULL)
+                succ += write_term_colors(path, buffer, offset);
+            else
+                warn("Cannot find stdout terminal: %s", strerror(errno));
         }
 
     }
-    log_c("Set colors to [%d] terminals!", succ);
+    log_c("Set colors to [%zu] terminals!", succ);
 }
 
 /* cache wallpaper color palette */

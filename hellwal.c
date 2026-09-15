@@ -2022,6 +2022,200 @@ enum COLOR_TYPES parse_color_type(const char *str)
     return HEX_t;
 }
 
+/* Template operations use true HSL and keep precision until final formatting.
+ * Palette-generation helpers retain their existing behavior. */
+typedef struct {
+    double h, s, l;
+} TEMPLATE_HSL;
+
+static TEMPLATE_HSL template_channels_to_hsl(double r, double g, double b)
+{
+    double hi = fmax(r, fmax(g, b)), lo = fmin(r, fmin(g, b));
+    double delta = hi - lo;
+    TEMPLATE_HSL result = {0, 0, (hi + lo) / 2};
+    if (delta == 0) return result;
+    result.s = delta / (1 - fabs(2 * result.l - 1));
+    if (hi == r) result.h = fmod((g - b) / delta, 6);
+    else if (hi == g) result.h = (b - r) / delta + 2;
+    else result.h = (r - g) / delta + 4;
+    result.h *= 60;
+    if (result.h < 0) result.h += 360;
+    return result;
+}
+
+static void template_hsl_channels(TEMPLATE_HSL color, double channels[3])
+{
+    double c = (1 - fabs(2 * color.l - 1)) * color.s;
+    double x = c * (1 - fabs(fmod(color.h / 60, 2) - 1));
+    double m = color.l - c / 2;
+    double r = 0, g = 0, b = 0;
+    if (color.h < 60) { r = c; g = x; }
+    else if (color.h < 120) { r = x; g = c; }
+    else if (color.h < 180) { g = c; b = x; }
+    else if (color.h < 240) { g = x; b = c; }
+    else if (color.h < 300) { r = x; b = c; }
+    else { r = c; b = x; }
+    channels[0] = fmin(1, fmax(0, r + m));
+    channels[1] = fmin(1, fmax(0, g + m));
+    channels[2] = fmin(1, fmax(0, b + m));
+}
+
+static void template_skip_spaces(const char **p)
+{
+    while (**p && strchr(" \t\r\n", **p)) (*p)++;
+}
+
+static int template_identifier(const char **p, char *name, size_t size)
+{
+    template_skip_spaces(p);
+    size_t n = 0;
+    while ((**p >= 'a' && **p <= 'z') || (**p >= '0' && **p <= '9'))
+    {
+        if (n + 1 >= size) return 0;
+        name[n++] = *(*p)++;
+    }
+    name[n] = '\0';
+    template_skip_spaces(p);
+    return n != 0;
+}
+
+static int template_number(const char **p, double *number)
+{
+    template_skip_spaces(p);
+    char *end;
+    errno = 0;
+    *number = strtod(*p, &end);
+    if (end == *p || errno == ERANGE || !isfinite(*number)) return 0;
+    *p = end;
+    template_skip_spaces(p);
+    return 1;
+}
+
+/* Return a newly allocated result, or NULL for an invalid operation expression. */
+static char *template_color_expression(const char *expression, PALETTE pal)
+{
+    const char *p = expression;
+    char name[32];
+    if (!template_identifier(&p, name, sizeof(name))) return NULL;
+    int index = -1;
+    if (!strcmp(name, "background")) index = 0;
+    else if (!strcmp(name, "foreground") || !strcmp(name, "cursor") || !strcmp(name, "border"))
+        index = PALETTE_SIZE - 1;
+    else
+    {
+        for (int i = 0; i < PALETTE_SIZE; i++)
+        {
+            char candidate[32];
+            snprintf(candidate, sizeof(candidate), "color%d", i);
+            if (!strcmp(name, candidate)) { index = i; break; }
+        }
+    }
+    if (index == -1) return NULL;
+    RGB source = pal.colors[index];
+    TEMPLATE_HSL color = template_channels_to_hsl(source.R / 255.0, source.G / 255.0, source.B / 255.0);
+    enum COLOR_TYPES type = HEX_t;
+    int operations = 0;
+    while (*p == '.')
+    {
+        p++;
+        if (!template_identifier(&p, name, sizeof(name))) return NULL;
+        if (*p != '(')
+        {
+            if (!strcmp(name, "hex")) type = HEX_t;
+            else if (!strcmp(name, "rgb")) type = RGB_t;
+            else if (!strcmp(name, "r")) type = R_t;
+            else if (!strcmp(name, "g")) type = G_t;
+            else if (!strcmp(name, "b")) type = B_t;
+            else return NULL;
+            break; /* A format must be the final suffix. */
+        }
+        p++;
+        template_skip_spaces(&p);
+        double amount = 0;
+        int no_argument = !strcmp(name, "complement") || !strcmp(name, "grayscale") || !strcmp(name, "invert");
+        if (!no_argument && !template_number(&p, &amount)) return NULL;
+        if (*p != ')') return NULL;
+        p++;
+        template_skip_spaces(&p);
+        int factor = !strcmp(name, "contrast") || !strcmp(name, "brightness");
+        if (factor && amount < 0) return NULL;
+        if (!no_argument && !factor && strcmp(name, "rotate") && (amount < 0 || amount > 1)) return NULL;
+
+        if (!strcmp(name, "saturate")) color.s = fmin(1, color.s + amount);
+        else if (!strcmp(name, "desaturate")) color.s = fmax(0, color.s - amount);
+        else if (!strcmp(name, "lighten")) color.l = fmin(1, color.l + amount);
+        else if (!strcmp(name, "darken")) color.l = fmax(0, color.l - amount);
+        else if (!strcmp(name, "saturation")) color.s = amount;
+        else if (!strcmp(name, "lightness")) color.l = amount;
+        else if (!strcmp(name, "rotate")) color.h = fmod(color.h + fmod(amount, 360) + 360, 360);
+        else if (!strcmp(name, "complement")) color.h = fmod(color.h + 180, 360);
+        else if (!strcmp(name, "grayscale")) color.s = 0;
+        else if (!strcmp(name, "invert"))
+        {
+            color.h = fmod(color.h + 180, 360);
+            color.l = 1 - color.l;
+        }
+        else if (!strcmp(name, "sepia") || factor)
+        {
+            double rgb[3], filtered[3];
+            template_hsl_channels(color, rgb);
+            if (!strcmp(name, "sepia"))
+            {
+                filtered[0] = rgb[0] * 0.393 + rgb[1] * 0.769 + rgb[2] * 0.189;
+                filtered[1] = rgb[0] * 0.349 + rgb[1] * 0.686 + rgb[2] * 0.168;
+                filtered[2] = rgb[0] * 0.272 + rgb[1] * 0.534 + rgb[2] * 0.131;
+                for (int i = 0; i < 3; i++)
+                    filtered[i] = rgb[i] + amount * (filtered[i] - rgb[i]);
+            }
+            else
+            {
+                for (int i = 0; i < 3; i++)
+                    filtered[i] = !strcmp(name, "brightness") ? rgb[i] * amount : (rgb[i] - 0.5) * amount + 0.5;
+            }
+            for (int i = 0; i < 3; i++) filtered[i] = fmin(1, fmax(0, filtered[i]));
+            color = template_channels_to_hsl(filtered[0], filtered[1], filtered[2]);
+        }
+        else return NULL;
+        operations++;
+    }
+    if (!operations) return NULL;
+    double alpha = -1;
+    if (*p)
+    {
+        if (!template_identifier(&p, name, sizeof(name)) || strcmp(name, "alpha") || *p != '=') return NULL;
+        p++;
+        if (!template_number(&p, &alpha) || alpha < 0 || alpha > 1) return NULL;
+    }
+    if (*p) return NULL;
+
+    double channels[3];
+    template_hsl_channels(color, channels);
+    RGB rgb = {(uint8_t)lround(channels[0] * 255),
+               (uint8_t)lround(channels[1] * 255),
+               (uint8_t)lround(channels[2] * 255)};
+    char *result = malloc(64);
+    if (!result) err("Failed to allocate template color");
+    switch (type)
+    {
+        case HEX_t:
+            snprintf(result, 64, "%02x%02x%02x", rgb.R, rgb.G, rgb.B);
+            if (alpha >= 0) snprintf(result + 6, 58, "%02x", (unsigned)(alpha * 255));
+            break;
+        case RGB_t:
+            snprintf(result, 64, "%u, %u, %u", rgb.R, rgb.G, rgb.B);
+            if (alpha >= 0)
+            {
+                size_t len = strlen(result);
+                snprintf(result + len, 64 - len, ", %f", alpha);
+            }
+            break;
+        case R_t: snprintf(result, 64, "%u", rgb.R); break;
+        case G_t: snprintf(result, 64, "%u", rgb.G); break;
+        case B_t: snprintf(result, 64, "%u", rgb.B); break;
+    }
+    return result;
+}
+
 /* load t->path file to buffer and replaces content between delim with colors from PALETTE colors */
 void process_template(TEMPLATE *t, PALETTE pal)
 {
@@ -2136,6 +2330,27 @@ void process_template(TEMPLATE *t, PALETTE pal)
                      */
                     if (hell_parser_delim_buffer_between(p, HELLWAL_DELIM, HELLWAL_DELIM_COUNT, &delim_buf) == HELL_PARSER_OK)
                     {
+                        /* Keep existing placeholders on their original parsing path. */
+                        if (strchr(delim_buf, '(') != NULL)
+                        {
+                            char *rendered = template_color_expression(delim_buf, pal);
+                            if (rendered == NULL)
+                            {
+                                warn("Invalid color expression in template %s: %s", t->name, delim_buf);
+                                rendered = malloc(strlen(delim_buf) + 5);
+                                if (!rendered) err("Failed to allocate template expression");
+                                sprintf(rendered, "%%%%%s%%%%", delim_buf);
+                            }
+                            template_size += strlen(rendered) + 1;
+                            template_buffer = realloc(template_buffer, template_size);
+                            if (!template_buffer) err("Failed to allocate template buffer");
+                            strcat(template_buffer, rendered);
+                            free(rendered);
+                            free(delim_buf);
+                            buffrd_pos = p->pos;
+                            skip = 0;
+                            continue;
+                        }
                         remove_extra_whitespaces(delim_buf);
                         hell_parser_t *pdt = hell_parser_create(delim_buf);
                         char *L_TOKEN = NULL;

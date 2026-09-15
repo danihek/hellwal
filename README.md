@@ -124,6 +124,19 @@ For now these variables are available:
 
 `alpha` is ignored for single rgb channels.
 
+### Color operations and filters
+
+Chain HSL adjustments and RGB filters without changing the base palette:
+
+```text
+%% color1.saturate(0.2).lighten(0.1).hex %%
+%% background.sepia(0.5).contrast(1.2).rgb alpha=0.8 %%
+```
+
+See [template color operations](docs/template-colors.md) for all 13 operations,
+syntax, and examples. Run `bash scripts/preview-template-colors.sh` for an HTML
+swatch preview, or pass a wallpaper path to try its palette.
+
 ## JSON
 
 You can use the `--json` argument to suppress any other output and write colors to `stdout` in JSON format.

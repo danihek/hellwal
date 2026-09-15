@@ -126,16 +126,35 @@ For now these variables are available:
 
 ### Color operations and filters
 
-Chain HSL adjustments and RGB filters without changing the base palette:
+Chain HSL (hue, saturation, lightness) adjustments and RGB filters without changing
+the base palette. Operations apply from left to right:
 
 ```text
 %% color1.saturate(0.2).lighten(0.1).hex %%
 %% background.sepia(0.5).contrast(1.2).rgb alpha=0.8 %%
 ```
 
-See [template color operations](docs/template-colors.md) for all 13 operations,
-syntax, and examples. Run `bash scripts/preview-template-colors.sh` for an HTML
-swatch preview, or pass a wallpaper path to try its palette.
+| Operation | Description |
+| --- | --- |
+| `saturate(x)` / `desaturate(x)` | Add / subtract saturation by `x` (0–1). |
+| `lighten(x)` / `darken(x)` | Add / subtract lightness by `x` (0–1). |
+| `saturation(x)` / `lightness(x)` | Set saturation / lightness to `x` (0–1). |
+| `rotate(degrees)` | Rotate hue in either direction, wrapping at 360°. |
+| `complement()` | Rotate hue by 180°. |
+| `grayscale()` | Remove saturation while preserving lightness. |
+| `invert()` | Invert each RGB channel (`255 - channel`). |
+| `sepia(amount)` | Apply a sepia tint: 0 is unchanged, 1 is full sepia. |
+| `contrast(factor)` | Scale RGB contrast around mid-gray: 0 is gray, 1 is unchanged. |
+| `brightness(factor)` | Multiply RGB channels: 0 is black, 1 is unchanged. |
+
+Factors must be nonnegative; all arguments must be finite. Results clamp to the
+valid color range after each operation. HSL adjustments add percentage points:
+`lighten(0.2)` adds 20 points of lightness. RGB filters work on sRGB channels.
+
+Use `color0`–`color15` or the existing color aliases. Finish the chain with `.hex`,
+`.rgb`, `.r`, `.g`, or `.b` (default: hex), then optionally append `alpha=0.5`.
+Hex output omits `#`; alpha is ignored for individual channels. Invalid operation
+expressions warn and remain visible in the generated file.
 
 ## JSON
 

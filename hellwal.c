@@ -108,6 +108,7 @@
 #include <stdio.h>
 #include <libgen.h>
 #include <dirent.h>
+#include <errno.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -2264,35 +2265,46 @@ TEMPLATE **get_template_structure_dir(const char *dir_path, size_t *_size)
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL)
     {
-        if (entry->d_type == DT_REG)
+        size_t path_len = strlen(dir_path) + strlen(entry->d_name) + 2; // +2 for '/' and '\0'
+        char *full_path = malloc(path_len);
+        if (full_path == NULL)
         {
-            size_t path_len = strlen(dir_path) + strlen(entry->d_name) + 2; // +2 for '/' and '\0'
-            char *full_path = malloc(path_len);
-            if (full_path == NULL)
-            {
-                perror("Failed to allocate memory for file path");
-                closedir(dir);
-                return NULL;
-            }
-            snprintf(full_path, path_len, "%s/%s", dir_path, entry->d_name);
-
-            TEMPLATE **new_t_arr = realloc(t_arr, (size + 1) * sizeof(TEMPLATE*));
-            if (new_t_arr == NULL)
-            {
-                perror("Failed to allocate memory for templates array");
-                free(full_path);
-                closedir(dir);
-                free(t_arr);
-                return NULL;
-            }
-            t_arr = new_t_arr;
-
-            t_arr[size] = calloc(1 ,sizeof(TEMPLATE));
-            t_arr[size]->path = full_path;
-            t_arr[size]->name = strdup(entry->d_name);
-
-            size++;
+            perror("Failed to allocate memory for file path");
+            closedir(dir);
+            return NULL;
         }
+        snprintf(full_path, path_len, "%s/%s", dir_path, entry->d_name);
+
+        /* Follow symlinks and support filesystems without entry type information. */
+        struct stat st;
+        if (stat(full_path, &st) == -1)
+        {
+            warn("Cannot access template: %s: %s", full_path, strerror(errno));
+            free(full_path);
+            continue;
+        }
+        if (!S_ISREG(st.st_mode))
+        {
+            free(full_path);
+            continue;
+        }
+
+        TEMPLATE **new_t_arr = realloc(t_arr, (size + 1) * sizeof(TEMPLATE*));
+        if (new_t_arr == NULL)
+        {
+            perror("Failed to allocate memory for templates array");
+            free(full_path);
+            closedir(dir);
+            free(t_arr);
+            return NULL;
+        }
+        t_arr = new_t_arr;
+
+        t_arr[size] = calloc(1 ,sizeof(TEMPLATE));
+        t_arr[size]->path = full_path;
+        t_arr[size]->name = strdup(entry->d_name);
+
+        size++;
     }
 
     closedir(dir);

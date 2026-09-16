@@ -1,28 +1,35 @@
 VERSION := $(shell cat VERSION)
 
-CFLAGS = -Wall -Wextra -O3
-LDFLAGS = -lm
+CC       := gcc
+CFLAGS   := -Wall -Wextra -O3
+DEBUGFLAGS := -Wall -Wextra -ggdb
+LDFLAGS  := -lm
 
-DESTDIR = /usr/local/bin
+PREFIX   ?= /usr/local
+BINDIR   := $(PREFIX)/bin
 
-hellwal: hellwal.c
-	$(CC) $(CFLAGS) hellwal.c -o hellwal $(LDFLAGS) -DVERSION=\"$(VERSION)\"
+TARGET   := hellwal
+
+all: $(TARGET)
+
+$(TARGET): hellwal.c
+	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS) -DVERSION=\"$(VERSION)\"
 
 debug: hellwal.c
-	$(CC) $(CFLAGS) -ggdb hellwal.c -o hellwal $(LDFLAGS) -DVERSION=\"$(VERSION)\"
+	$(CC) $(DEBUGFLAGS) $< -o $(TARGET) $(LDFLAGS) -DVERSION=\"$(VERSION)\"
 
 clean:
-	rm hellwal
+	rm -f $(TARGET)
 
-install: hellwal
-	mkdir -p $(DESTDIR)
-	cp -f hellwal $(DESTDIR)
-	chmod 755 $(DESTDIR)/hellwal # chmod u=rwx,g=rx,o=rx
+install: $(TARGET)
+	mkdir -p $(DESTDIR)$(BINDIR)
+	cp -f $(TARGET) $(DESTDIR)$(BINDIR)
+	chmod 755 $(DESTDIR)$(BINDIR)/$(TARGET)
 
 uninstall:
-	rm -f $(DESTDIR)/hellwal
+	rm -f $(DESTDIR)$(BINDIR)/$(TARGET)
 
-release: hellwal
-	tar czf hellwal-v$(VERSION).tar.gz hellwal
+release: $(TARGET)
+	tar czf $(TARGET)-v$(VERSION).tar.gz $(TARGET)
 
-.PHONY: hellwal debug release clean install uninstall
+.PHONY: all debug clean install uninstall release

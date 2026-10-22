@@ -66,6 +66,81 @@ hellwal -i <folder> --random
 
 Generated templates are saved in `~/.cache/hellwal/`.
 
+## Comfort mode
+
+Use `--comfort-mode` for restrained wallpaper colors with explicit text contrast targets:
+
+```sh
+hellwal -i wallpaper.png --comfort-mode
+hellwal -i wallpaper.png --comfort-mode --light
+```
+
+Comfort mode uses deterministic OKLab clustering to preserve wallpaper hues,
+reduce excessive saturation, and fit colors to the background. Dark remains the
+default. Monochrome wallpapers remain monochrome. Existing appearance flags,
+including `--neon-mode`, `--invert`, offsets, grayscale and
+`--dominant-background`, work with it; contrast correction runs last.
+`--check-contrast` is redundant in comfort mode. `--skip-luminance-sort` keeps
+deterministic selection order instead of perceptual lightness order.
+
+| Role | Contrast target against its background |
+| --- | --- |
+| Main text (`color7`, `color15`, `foreground`) | 7.2:1 |
+| Regular colored text (`color1`–`color6`) and `accent` | 5.2:1 |
+| Bright colored text (`color9`–`color14`) | 6.2:1 |
+| Muted text (`color8`) | 4.7:1 |
+| Text on accents, selections and cursors | At least 5.2:1 where possible |
+
+An image is required. Theme merging through `--override-colors` is supported;
+explicit static colors and theme slots outside the override list remain exact.
+If these fixed colors prevent a target, hellwal warns on stderr, including on
+cache hits. JSON output remains valid.
+
+Use the additional [template variables](#available-template-variables) below in
+your own templates for selections and cursors. These targets apply to the
+intended foreground/background pairs; template filters, transparency and other
+background pairings can change contrast. Existing templates remain available.
+
+For background, see [relative luminance](https://en.wikipedia.org/wiki/Relative_luminance),
+[color difference](https://en.wikipedia.org/wiki/Color_difference), and
+[OKLab](https://en.wikipedia.org/wiki/Oklab_color_space).
+The mathematics follow [OKLab](https://bottosson.github.io/posts/oklab/) and
+[W3C relative luminance and contrast](https://www.w3.org/TR/WCAG22/#dfn-relative-luminance).
+The targets are chosen comfort defaults, not medically established limits or
+an eye-damage prevention claim. Classic palette generation remains the default.
+
+## Palette cache
+
+Finished palettes are stored in `~/.cache/hellwal/cache/`, or `cache/` inside
+`--output`. Each appearance-argument combination has its own folder, for example:
+
+```text
+cache/
+  comfort-dark-<arguments-hash>/<image-content-hash>.palette
+  comfort-light-<arguments-hash>/<image-content-hash>.palette
+  classic-dark-<arguments-hash>/<image-content-hash>.palette
+```
+
+Default dark, light, and dark with `--dark-offset 0.2` are cached separately.
+The argument key includes the algorithm, appearance flags, offsets, grayscale,
+static colors and theme override slots. Implicit dark and explicit `--dark`
+share an entry. Image and theme contents determine the file identity, so editing
+either invalidates the palette even if its filename or timestamp stays the same.
+Output formatting, template folders, quiet mode and scripts do not create extra
+palette variants. Comfort mode and classic mode use this same cache layout;
+there is no separate extraction cache. Use `--no-cache` to bypass reads and writes.
+
+Clear all cached palette variants without an image:
+
+```sh
+hellwal --clear-cache
+hellwal --clear-cache --output /path/to/output
+```
+
+The command reports the number of files removed, cached-data bytes removed and
+disk space reclaimed. Generated templates in the output folder remain in place.
+It also removes legacy palette caches. Add `--json` for machine-readable totals.
+
 ## Templates
 
 **[INFO]** - if you got hellwal from the **AUR**, examples of default templates can be
@@ -98,7 +173,34 @@ color15butRGB='%%color15.rgb%%'
 
 ```
 
-You can get any generated color for values 0 to 15.
+### Available template variables
+
+| Variable | Description | Usage |
+| --- | --- | --- |
+| `wallpaper` | Image path (theme name when using only a theme) | `%%wallpaper%%` |
+| `color0`–`color15` | The 16 palette colors | `%%color1.hex%%` |
+| `background` | Background, alias of `color0` | `%%background%%` |
+| `foreground` | Main text, alias of `color15` | `%%foreground%%` |
+| `cursor` | Cursor block background, alias of `color15` | `%%cursor%%` |
+| `border` | Border/indicator color, alias of `color15` | `%%border%%` |
+| `accent` | Wallpaper accent fitted against `background`; comfort mode only | `%%accent%%` |
+| `accent_foreground` | Text on `accent`; comfort mode only | `%%accent_foreground%%` |
+| `selection_background` | Selection fill, same as `accent`; comfort mode only | `%%selection_background%%` |
+| `selection_foreground` | Text on `selection_background`; comfort mode only | `%%selection_foreground%%` |
+| `cursor_text` | Text inside the `cursor` block; comfort mode only | `%%cursor_text%%` |
+
+All color variables, including the comfort-mode variables, support the formats,
+alpha modifier and operations below. `wallpaper` is a string, not a color.
+Color values omit `#`; add it in the template when required. For example:
+
+```text
+selection_background #%%selection_background.hex%%
+selection_foreground #%%selection_foreground.hex%%
+cursor #%%cursor.hex%%
+cursor_text_color #%%cursor_text.hex%%
+accent_rgba = %%accent.rgb alpha=0.8%%
+accent_inverted = #%%accent.invert().hex%%
+```
 
 After the color keyword, you can specify the format: hex, rgb, or a single rgb channel.
 By default, the template output is in hex.
@@ -151,7 +253,8 @@ Factors must be nonnegative; all arguments must be finite. Results clamp to the
 valid color range after each operation. HSL adjustments add percentage points:
 `lighten(0.2)` adds 20 points of lightness. RGB filters work on sRGB channels.
 
-Use `color0`–`color15` or the existing color aliases. Finish the chain with `.hex`,
+Use `color0`–`color15`, the existing color aliases, or the comfort-mode color
+variables. Finish the chain with `.hex`,
 `.rgb`, `.r`, `.g`, or `.b` (default: hex), then optionally append `alpha=0.5`.
 Hex output omits `#`; alpha is ignored for individual channels. Invalid operation
 expressions warn and remain visible in the generated file.
@@ -159,6 +262,8 @@ expressions warn and remain visible in the generated file.
 ## JSON
 
 You can use the `--json` argument to suppress any other output and write colors to `stdout` in JSON format.
+With `--comfort-mode`, the five additional color variables are included in the
+`special` object alongside `background`, `foreground`, `cursor` and `border`.
 You can then manipulate the output with `jq`. For example:
 
 ```sh
@@ -233,9 +338,10 @@ hellwal -i wallpaper.jpg -t gruvbox.hellwal --override-colors color1,color2 --li
 Both `--image` and `--theme` are required. Theme paths, named themes, and
 `--theme-folder` work as usual. With `--random`, only the image is chosen randomly;
 the specified theme stays fixed. `wallpaper` in templates/JSON refers to the image.
-The source theme is never rewritten, and only the raw image palette is cached.
+The source theme is never rewritten. Finished palettes are cached by image/theme
+contents and appearance arguments, including the override list.
 Combining image and theme without `--override-colors` remains an error, and
-`--dominant-background` still cannot be combined with themes.
+`--dominant-background` can be combined with themes only in comfort mode.
 
 ## NEON Mode
 

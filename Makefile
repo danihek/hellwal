@@ -5,10 +5,10 @@ LDFLAGS = -lm
 
 DESTDIR = /usr/local/bin
 
-hellwal: hellwal.c
+hellwal: hellwal.c $(wildcard src/*.h)
 	$(CC) $(CFLAGS) hellwal.c -o hellwal $(LDFLAGS) -DVERSION=\"$(VERSION)\"
 
-debug: hellwal.c
+debug: hellwal.c $(wildcard src/*.h)
 	$(CC) $(CFLAGS) -ggdb hellwal.c -o hellwal $(LDFLAGS) -DVERSION=\"$(VERSION)\"
 
 clean:

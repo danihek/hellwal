@@ -117,13 +117,13 @@
 #include <sys/stat.h>
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#include "src/stb_image.h"
 
 #define HELL_PARSER_IMPLEMENTATION
-#include "hell_parser.h"
+#include "src/hell_parser.h"
 
 #define HELL_COLORS_IMPLEMENTATION
-#include "hell_colors.h"
+#include "src/hell_colors.h"
 
 /***
  * MACROS
@@ -267,6 +267,7 @@ struct {
 
     /* do not cache palette, do not read cached palettes */
     uint8_t NO_CACHE : 1;
+    uint8_t CLEAR_CACHE : 1;
 
     /* invert color palette colors */
     uint8_t INVERT : 1;
@@ -286,6 +287,7 @@ struct {
 
     /* make sure colors contrast well with the background */
     uint8_t CHECK_CONTRAST : 1;
+    uint8_t COMFORT_MODE : 1;
 
     /* defines 'grayness' of colorpalette */
     float GRAY_SCALE;
@@ -321,32 +323,6 @@ struct {
     .DARKNESS_OFFSET = -1.0f,
     .OFFSET_GLOBAL = 0.0f
 };
-
-/* default color template to save cached themes */
-char *CACHE_TEMPLATE = "\
-\\%\\%wallpaper = %% wallpaper %% \\%\\%\n\
-\
-\\%\\%background = #%% background %% \\%\\%\n\
-\\%\\%foreground = #%% foreground %% \\%\\%\n\
-\\%\\%cursor = #%% cursor %% \\%\\%\n\
-\\%\\%border = #%% border %% \\%\\%\n\
-\
-\\%\\%color0 = #%% color0.hex %% \\%\\%\n\
-\\%\\%color1 = #%% color1.hex %% \\%\\%\n\
-\\%\\%color2 = #%% color2.hex %% \\%\\%\n\
-\\%\\%color3 = #%% color3.hex %% \\%\\%\n\
-\\%\\%color4 = #%% color4.hex %% \\%\\%\n\
-\\%\\%color5 = #%% color5.hex %% \\%\\%\n\
-\\%\\%color6 = #%% color6.hex %% \\%\\%\n\
-\\%\\%color7 = #%% color7.hex %% \\%\\%\n\
-\\%\\%color8 = #%% color8.hex %% \\%\\%\n\
-\\%\\%color9 = #%% color9.hex %% \\%\\%\n\
-\\%\\%color10 = #%% color10.hex %% \\%\\%\n\
-\\%\\%color11 = #%% color11.hex %% \\%\\%\n\
-\\%\\%color12 = #%% color12.hex %% \\%\\%\n\
-\\%\\%color13 = #%% color13.hex %% \\%\\%\n\
-\\%\\%color14 = #%% color14.hex %% \\%\\%\n\
-\\%\\%color15 = #%% color15.hex %% \\%\\%\n";
 
 /* default color template to save cached themes */
 char *JSON_TEMPLATE = 
@@ -436,8 +412,6 @@ PALETTE gen_palette(IMG *img);
 PALETTE get_color_palette(PALETTE p);
 
 int is_color_palette_var(char *name);
-int check_cached_palette(char *filepath, PALETTE *p);
-void palette_write_cache(char *filepath, PALETTE *p);
 char *process_variable_alpha(char *color, char *value, enum COLOR_TYPES type);
 char *palette_color(PALETTE pal, unsigned c, enum COLOR_TYPES type);
 char *process_addtional_variables(char *color, char *right_token, enum COLOR_TYPES type);
@@ -465,6 +439,9 @@ TEMPLATE **get_template_structure_dir(const char *dir_path, size_t *_size);
 char *load_theme(char *themename);
 PALETTE process_themeing(char *theme);
 int process_theme(char *t, PALETTE *pal);
+
+#include "src/comfort_palette.h"
+#include "src/palette_cache.h"
 
 /*** 
  * FUNCTIONS DECLARATIONS
@@ -495,10 +472,12 @@ void hellwal_usage(const char *name)
     printf("  -n, --dark-offset        <value>   Adjust darkness offset   (0-1) (float)\n");
     printf("  -b, --bright-offset      <value>   Adjust brightness offset (0-1) (float)\n");
     printf("  --check-contrast                   Ensure colors are readable against the background\n");
+    printf("  --comfort-mode                     Use perceptual image colors with final contrast targets\n");
     printf("  --preview                          Preview current terminal colorscheme\n");
     printf("  --preview-small                    Preview current terminal colorscheme - small factor\n");
     printf("  --debug                            Enable debug mode\n");
     printf("  --version                          Print version and exit\n");
+    printf("  --clear-cache                      Clear cached palettes and report reclaimed space\n");
     printf("  --no-cache                         Disable caching\n");
     printf("  --skip-term-colors                 Skip setting colors to the terminal\n");
     printf("  --skip-luminance-sort              Skip sorting colors before applying\n");
@@ -597,6 +576,10 @@ int set_args(int argc, char *argv[])
         {
             ARGS.NEON_MODE = 1;
         }
+        else if (strcmp(argv[i], "--comfort-mode") == 0)
+        {
+            ARGS.COMFORT_MODE = 1;
+        }
         else if (strcmp(argv[i], "--check-contrast") == 0)
         {
             ARGS.CHECK_CONTRAST = 1;
@@ -636,6 +619,8 @@ int set_args(int argc, char *argv[])
             print_term_colors_small();
             exit(EXIT_SUCCESS);
         }
+        else if (strcmp(argv[i], "--clear-cache") == 0)
+            ARGS.CLEAR_CACHE = 1;
         else if (strcmp(argv[i], "--no-cache") == 0)
         {
             ARGS.NO_CACHE = 1;
@@ -766,6 +751,9 @@ int set_args(int argc, char *argv[])
     if (argc == -1)
         err("Incomplete option: %s", argv[j]);
 
+    SET_DEF(ARGS.OUTPUT, "~/.cache/hellwal/");
+    if (ARGS.CLEAR_CACHE) return 0;
+
     /* handle needed arguments and warns - idk how to do this the other way */
     if (ARGS.RANDOM != 0 && (ARGS.THEME_FOLDER == NULL && ARGS.IMAGE == NULL))
         err("you have to specify --image to provide image folder or --theme-folder to use RANDOM");
@@ -799,7 +787,10 @@ int set_args(int argc, char *argv[])
             ARGS.THEME = rand_file(ARGS.THEME_FOLDER);
     }
 
-    if (ARGS.DOMINANT_BACKGROUND &&
+    if (ARGS.COMFORT_MODE && ARGS.IMAGE == NULL)
+        err("--comfort-mode requires an image; use --override-colors to merge with a theme");
+
+    if (!ARGS.COMFORT_MODE && ARGS.DOMINANT_BACKGROUND &&
         (ARGS.IMAGE == NULL || ARGS.THEME != NULL || ARGS.LIGHT_MODE || ARGS.COLOR_MODE))
         err("--dominant-background requires an image in dark/default mode; it cannot be used with themes, --light or --color");
 
@@ -810,7 +801,6 @@ int set_args(int argc, char *argv[])
         ARGS.OFFSET_GLOBAL += ARGS.BRIGHTNESS_OFFSET;
 
     /* If not specified, set default ones */
-    SET_DEF(ARGS.OUTPUT, "~/.cache/hellwal/");
     SET_DEF(ARGS.THEME_FOLDER , "~/.config/hellwal/themes");
     ARGS.DEFAULT_TEMPLATE_FOLDER = ARGS.TEMPLATE_FOLDER == NULL;
     SET_DEF(ARGS.TEMPLATE_FOLDER, "~/.config/hellwal/templates");
@@ -916,7 +906,7 @@ void err(const char *format, ...)
 /* prints to stderr formatted output, but not exits */
 void warn(const char *format, ...)
 {
-    if (ARGS.QUIET != 0)
+    if (ARGS.QUIET != 0 && !ARGS.COMFORT_MODE)
         return;
 
     va_list ap;
@@ -1390,23 +1380,15 @@ void check_palette_contrast(PALETTE *palette)
     }
 }
 
-/* Load only the raw image palette; merged theme colors never enter this cache. */
+/* Extraction is uncached here; the shared cache stores finished palettes. */
 static PALETTE load_image_palette(void)
 {
-    PALETTE p;
-    int cached = check_cached_palette(ARGS.IMAGE, &p);
-    int needs_background = ARGS.DOMINANT_BACKGROUND && ARGS.STATIC_BG == NULL;
-    if (!cached || needs_background) {
-        IMG *img = img_load(ARGS.IMAGE);
-        if (needs_background)
-            ARGS.DOMINANT_BACKGROUND_COLOR = dominant_background(img);
-        if (!cached)
-        {
-            p = gen_palette(img);
-            palette_write_cache(ARGS.IMAGE, &p);
-        }
-        img_free(img);
-    }
+    if (ARGS.COMFORT_MODE) return comfort_image_palette();
+    IMG *img = img_load(ARGS.IMAGE);
+    if (ARGS.DOMINANT_BACKGROUND && ARGS.STATIC_BG == NULL)
+        ARGS.DOMINANT_BACKGROUND_COLOR = dominant_background(img);
+    PALETTE p = gen_palette(img);
+    img_free(img);
     return p;
 }
 
@@ -1425,7 +1407,7 @@ PALETTE get_color_palette(PALETTE p)
         if (ARGS.OVERRIDE_COLORS)
         {
             PALETTE image = load_image_palette();
-            prepare_image_palette(&image);
+            if (!ARGS.COMFORT_MODE) prepare_image_palette(&image);
             for (unsigned i = 0; i < PALETTE_SIZE; i++)
                 if (ARGS.OVERRIDE_COLORS & (1u << i)) p.colors[i] = image.colors[i];
         }
@@ -1437,6 +1419,7 @@ PALETTE get_color_palette(PALETTE p)
 
 void apply_addtional_arguments(PALETTE *p)
 {
+    if (ARGS.COMFORT_MODE) { comfort_apply(p); return; }
     if (!ARGS.THEME)
         prepare_image_palette(p);
 
@@ -1661,7 +1644,8 @@ PALETTE gen_palette(IMG *img)
         else
             new_color = blend_colors(new_color, palette.colors[j], 0.5);
 
-        palette.colors[num_colors++] = new_color;
+        if (num_colors < PALETTE_SIZE)
+            palette.colors[num_colors++] = new_color;
     }
 
     if (ARGS.DEBUG != 0)
@@ -1753,8 +1737,10 @@ IMG *img_load(char *filename)
     if (imageData == 0) err("Error while loading the file: %s", filename);
 
     IMG *img = malloc(sizeof(IMG));
-
-    img->size = width * height * forcedNumberOfChannels;
+    if (!img) err("Cannot allocate image metadata");
+    img->width = (unsigned)width;
+    img->height = (unsigned)height;
+    img->size = (size_t)width * height * forcedNumberOfChannels;
     img->pixels = imageData;
 
     log_c("Loaded!");
@@ -1880,86 +1866,6 @@ void set_term_colors(PALETTE pal)
     log_c("Set colors to [%zu] terminals!", succ);
 }
 
-/* cache wallpaper color palette */
-void palette_write_cache(char *filepath, PALETTE *p)
-{
-    if (ARGS.NO_CACHE != 0 || ARGS.JSON != 0)
-        return;
-
-    if (filepath == NULL)
-        return;
-
-    char *filename = basename(filepath);
-
-    size_t cache_file_len = strlen(filename) + strlen(".hellwal") + 1;
-    char *cache_file = (char*)malloc(cache_file_len);
-    snprintf(cache_file, cache_file_len, "%s.hellwal", filename);
-
-    char *cache_dir = join_path(ARGS.OUTPUT, "cache");
-    char *full_cache_path = join_path(cache_dir, cache_file);
-
-    if (!check_output_dir(cache_dir))
-    {
-        free(cache_file);
-        free(cache_dir);
-        free(full_cache_path);
-        return;
-    }
-
-    /* create and process template */
-    TEMPLATE t;
-    t.content = CACHE_TEMPLATE;
-    t.path = full_cache_path;
-    t.name = cache_file;
-
-    process_template(&t, *p);
-    template_write(&t, cache_dir);
-
-    free(cache_file);
-    free(cache_dir);
-    free(full_cache_path);
-}
-
-/* if wallpaper was previously computed, if so, just load it */
-int check_cached_palette(char *filepath, PALETTE *p)
-{
-    if (ARGS.NO_CACHE != 0)
-        return 0;
-
-    if (filepath == NULL)
-        return 0;
-
-    char *filename = basename(filepath);
-
-    size_t cache_file_len = strlen(filename) + strlen(".hellwal") + 1;
-    char *cache_file = (char*)malloc(cache_file_len);
-    snprintf(cache_file, cache_file_len, "%s.hellwal", filename);
-
-    char *cache_dir = join_path(ARGS.OUTPUT, "cache");
-    char *full_cache_path = join_path(cache_dir, cache_file);
-
-    char *theme = load_file(full_cache_path);
-
-    int result = 1;
-    if (theme == NULL)
-    {
-        if (errno != ENOENT)
-            warn("Failed to open file: %s: %s", full_cache_path, strerror(errno));
-        result = 0;
-    }
-    else
-    {
-        /* cached palette is stored as theme */
-        result = process_theme(theme, p);
-    }
-
-    free(cache_file);
-    free(cache_dir);
-    free(full_cache_path);
-
-    return result;
-}
-
 char *process_addtional_variables(char *color, char *right_token, enum COLOR_TYPES type)
 {
     if (color == NULL) return NULL;
@@ -2060,6 +1966,7 @@ char *load_file(char *filename)
  */
 void process_templating(PALETTE pal)
 {
+    if (ARGS.JSON && ARGS.COMFORT_MODE) { comfort_json(pal); return; }
     if (ARGS.JSON != 0)
     {
         TEMPLATE t;
@@ -2092,7 +1999,14 @@ void process_templating(PALETTE pal)
     {
         process_template(templates[i], pal);
         t_success += template_write(templates[i], ARGS.OUTPUT);
+        if (ARGS.COMFORT_MODE) {
+            free(templates[i]->content);
+            free(templates[i]->path);
+            free(templates[i]->name);
+            free(templates[i]);
+        }
     }
+    if (ARGS.COMFORT_MODE) free(templates);
 
     log_c("Processed [%d/%d] templates!", t_success, templates_count);
 }
@@ -2194,7 +2108,7 @@ static int template_identifier(const char **p, char *name, size_t size)
 {
     template_skip_spaces(p);
     size_t n = 0;
-    while ((**p >= 'a' && **p <= 'z') || (**p >= '0' && **p <= '9'))
+    while ((**p >= 'a' && **p <= 'z') || (**p >= '0' && **p <= '9') || **p == '_')
     {
         if (n + 1 >= size) return 0;
         name[n++] = *(*p)++;
@@ -2235,8 +2149,9 @@ static char *template_color_expression(const char *expression, PALETTE pal)
             if (!strcmp(name, candidate)) { index = i; break; }
         }
     }
-    if (index == -1) return NULL;
-    RGB source = pal.colors[index];
+    RGB source;
+    if (index != -1) source = pal.colors[index];
+    else if (!comfort_resolve(name, &source)) return NULL;
     TEMPLATE_HSL color = template_channels_to_hsl(source.R / 255.0, source.G / 255.0, source.B / 255.0);
     enum COLOR_TYPES type = HEX_t;
     int operations = 0;
@@ -2303,7 +2218,7 @@ static char *template_color_expression(const char *expression, PALETTE pal)
         else return NULL;
         operations++;
     }
-    if (!operations) return NULL;
+    if (!operations && !ARGS.COMFORT_MODE) return NULL;
     double alpha = -1;
     if (*p)
     {
@@ -2341,13 +2256,75 @@ static char *template_color_expression(const char *expression, PALETTE pal)
     return result;
 }
 
+/* The opt-in renderer uses the shared color-expression evaluator for simple
+ * roles as well as operations. Preserve literal whitespace and escaped %%.
+ * Classic rendering is deliberately unchanged. */
+static void comfort_process_template(TEMPLATE *t, PALETTE pal)
+{
+    char *loaded = t->content ? NULL : load_file(t->path);
+    const char *source = t->content ? t->content : loaded;
+    if (!source) { warn("Failed to open template: %s", t->path); return; }
+    size_t capacity = strlen(source) + 1, length = 0;
+    char *buffer = malloc(capacity);
+    if (!buffer) err("Cannot allocate template buffer");
+    for (const char *p = source; *p;) {
+        char literal[2] = {0};
+        const char *value = literal;
+        char *allocated = NULL;
+        if (p[0] == '\\' && p[1] == '%') { literal[0] = '%'; p += 2; }
+        else if (p[0] == '%' && p[1] == '%') {
+            const char *end = strstr(p + 2, "%%");
+            if (!end) { literal[0] = *p++; }
+            else {
+                size_t n = (size_t)(end - p - 2);
+                char *expression = malloc(n + 1);
+                if (!expression) err("Cannot allocate template expression");
+                memcpy(expression, p + 2, n); expression[n] = '\0';
+                const char *start = expression;
+                template_skip_spaces(&start);
+                size_t trimmed = strlen(start);
+                while (trimmed && strchr(" \t\r\n", start[trimmed-1])) trimmed--;
+                if (trimmed == 9 && !strncmp(start, "wallpaper", 9)) {
+                    size_t name_length = strlen(t->name);
+                    if (name_length >= 5 && !strcmp(t->name + name_length - 5, ".json")) {
+                        allocated = comfort_json_escape(ARGS.IMAGE);
+                        value = allocated;
+                    } else value = ARGS.IMAGE;
+                }
+                else {
+                    allocated = template_color_expression(expression, pal);
+                    if (!allocated) {
+                        warn("Invalid color expression in template %s: %s", t->name, expression);
+                        allocated = malloc(n + 5);
+                        if (!allocated) err("Cannot allocate template expression");
+                        snprintf(allocated, n + 5, "%%%%%s%%%%", expression);
+                    }
+                    value = allocated;
+                }
+                free(expression);
+                p = end + 2;
+            }
+        } else { literal[0] = *p++; }
+        size_t n = strlen(value);
+        if (length + n + 1 > capacity) {
+            capacity = (length + n + 1)*2;
+            char *grown = realloc(buffer, capacity);
+            if (!grown) err("Cannot grow template buffer");
+            buffer = grown;
+        }
+        memcpy(buffer + length, value, n); length += n;
+        free(allocated);
+    }
+    buffer[length] = '\0';
+    free(loaded);
+    t->content = buffer;
+}
+
 /* load t->path file to buffer and replaces content between delim with colors from PALETTE colors */
 void process_template(TEMPLATE *t, PALETTE pal)
 {
-    if (t == NULL) {
-        t->content = NULL;
-        return;
-    }
+    if (t == NULL) return;
+    if (ARGS.COMFORT_MODE) { comfort_process_template(t, pal); return; }
 
     if (ARGS.DEBUG != 0)
         log_c("  - generating template buffer: %s", t->name);
@@ -2792,11 +2769,15 @@ char *load_theme(char *themename)
 
                 sprintf(path, "%s/%s", ARGS.THEME_FOLDER, entry->d_name); 
                 t = load_file(path);
+                free(path);
                 
-                if (t != NULL)
+                if (t != NULL) {
+                    closedir(dir);
                     return t;
+                }
             }
         }
+        closedir(dir);
     }
     t = load_file(themename);
     if (t != NULL)
@@ -2830,7 +2811,7 @@ int hex_to_rgb(const char *hex, RGB *p)
 int is_color_palette_var(char *name)
 {
     for (size_t i = 0; i < PALETTE_SIZE; i++) {
-        char *col = calloc(1, 16);
+        char col[16];
         sprintf(col, "color%lu", i);
 
         if (strcmp(col, name) == 0)
@@ -2871,11 +2852,13 @@ int process_theme(char *t, PALETTE *pal)
                         size_t var_size = pd->pos - 1;
                         size_t val_size = pd->length - pd->pos + 1;
 
-                        char *variable = calloc(1, var_size);
+                        char *variable = calloc(1, var_size + 1);
                         char *value = calloc(1, val_size);
 
+                        if (!variable || !value) err("Failed to allocate theme variable");
+
                         strncpy(variable, pd->input, var_size);
-                        strncpy(value, pd->input + pd->pos + 1, val_size);
+                        memcpy(value, pd->input + pd->pos, val_size - 1);
 
                         remove_whitespaces(variable);
                         remove_whitespaces(value);
@@ -2889,13 +2872,11 @@ int process_theme(char *t, PALETTE *pal)
                                 processed_colors++;
                             }
                         }
-                        else
-                        {
-                            free(variable);
-                            free(value);
-                        }
+                        free(variable);
+                        free(value);
                     }
 
+                    hell_parser_destroy(pd);
                     free(delim_buf);
                 }
             }
@@ -2918,6 +2899,7 @@ PALETTE process_themeing(char *theme)
     {
         if (!process_theme(t, &pal))
             err("Not enough colors were specified in color palette: %s", theme);
+        free(t);
     }
     else
         err("Theme not found: %s", theme);
@@ -2934,11 +2916,17 @@ int main(int argc, char **argv)
     if (set_args(argc,argv) != 0)
         err("arguments error");
 
-    /* generate palette from image or theme */
-    PALETTE pal = get_color_palette(pal);
+    if (ARGS.CLEAR_CACHE) return palette_cache_clear();
 
-    /* apply theme'ing options liek --light, --color, --gray-scale 0.5 */
-    apply_addtional_arguments(&pal);
+    PALETTE pal = {0};
+    char *cache_path = palette_cache_path();
+    if (!palette_cache_read(cache_path, &pal)) {
+        pal = get_color_palette(pal);
+        apply_addtional_arguments(&pal);
+        palette_cache_write(cache_path, &pal);
+    }
+    free(cache_path);
+    if (ARGS.COMFORT_MODE) comfort_diagnostics(&pal);
 
     /* print palette colors as blocks*/
     print_palette(pal);
